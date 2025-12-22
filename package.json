@@ -1,0 +1,19 @@
+{
+  "name": "ygrecon-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm --filter @ygrecon/dsl build && pnpm --filter @ygrecon/core build && pnpm --filter @ygrecon/sim build && pnpm --filter @ygrecon/node-types-core build && pnpm --filter @ygrecon/viz build && pnpm -r typecheck",
+    "typecheck:all": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
+
+

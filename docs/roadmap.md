@@ -16,17 +16,17 @@ Rules:
 **Goal:** monorepo skeleton + strict TypeScript + base packages wired.
 
 ### Deliverables
-- [ ] pnpm workspace configured (`pnpm-workspace.yaml`)
-- [ ] `apps/web`: React + Vite + TypeScript
-- [ ] `@xyflow/react` installed and a placeholder canvas renders
-- [ ] `packages/dsl`: Graph DSL v0.1 types + Zod validation + tests
-- [ ] `packages/core`: registry skeleton + compiler placeholder + tests
-- [ ] `packages/sim`: engine interfaces skeleton + tests (no engine logic yet)
-- [ ] `packages/node-types-core`: core node type placeholders exported via registry
-- [ ] `packages/viz`: placeholder helpers
-- [ ] `packages/examples`: at least one example graph that validates
-- [ ] Root scripts: `dev`, `test`, `typecheck`, `lint`
-- [ ] README: quickstart + project principles + how to add node types
+- [x] pnpm workspace configured (`pnpm-workspace.yaml`)
+- [x] `apps/web`: React + Vite + TypeScript
+- [x] `@xyflow/react` installed and a placeholder canvas renders
+- [x] `packages/dsl`: Graph DSL v0.2 types + Zod validation + tests
+- [x] `packages/core`: registry skeleton + compiler placeholder + tests
+- [x] `packages/sim`: engine interfaces skeleton + tests (no engine logic yet)
+- [x] `packages/node-types-core`: core node type placeholders exported via registry
+- [x] `packages/viz`: placeholder helpers
+- [x] `packages/examples`: at least one example graph that validates
+- [x] Root scripts: `dev`, `test`, `typecheck`, `lint`
+- [x] README: quickstart + project principles + how to add node types
 
 ### Definition of Done (DoD)
 - `pnpm i && pnpm typecheck && pnpm test` passes
