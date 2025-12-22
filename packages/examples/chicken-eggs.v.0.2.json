@@ -1,0 +1,83 @@
+{
+    "dslVersion": "0.2",
+    "meta": {
+      "name": "Daily chicken -> 50/50 egg drop",
+      "seed": 12345,
+      "timeUnit": "ms",
+      "notes": "Every 86400000 ms create 1 chicken. Then split 50/50 into egg or big_egg pools."
+    },
+    "resources": [
+      { "id": "chicken", "label": "Chicken" },
+      { "id": "egg", "label": "Egg" },
+      { "id": "big_egg", "label": "Big Egg" }
+    ],
+    "nodes": [
+      {
+        "id": "src_buy_chicken",
+        "type": "core.Source",
+        "params": {
+          "resourceId": "chicken",
+          "mode": "interval",
+          "intervalMs": 86400000,
+          "amount": 1
+        }
+      },
+      {
+        "id": "rnd_drop",
+        "type": "core.RandomSplit",
+        "params": {
+          "consumeInput": true
+        }
+      },
+      {
+        "id": "pool_eggs",
+        "type": "core.Pool",
+        "params": {
+          "resourceId": "egg",
+          "initial": 0
+        }
+      },
+      {
+        "id": "pool_big_eggs",
+        "type": "core.Pool",
+        "params": {
+          "resourceId": "big_egg",
+          "initial": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_chicken_to_rng",
+        "from": "src_buy_chicken",
+        "to": "rnd_drop",
+        "params": {
+          "delayMs": 0,
+          "batch": 1
+        }
+      },
+      {
+        "id": "e_rng_to_egg",
+        "from": "rnd_drop",
+        "to": "pool_eggs",
+        "params": {
+          "weight": 1,
+          "outResourceId": "egg",
+          "batch": 1,
+          "delayMs": 0
+        }
+      },
+      {
+        "id": "e_rng_to_big_egg",
+        "from": "rnd_drop",
+        "to": "pool_big_eggs",
+        "params": {
+          "weight": 1,
+          "outResourceId": "big_egg",
+          "batch": 1,
+          "delayMs": 0
+        }
+      }
+    ]
+  }
+  
