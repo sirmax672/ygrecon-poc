@@ -17,6 +17,13 @@ export interface NodeTypeDefinition {
   };
   uiSchema?: Record<string, unknown>;
   validate?: (graph: GraphDSL, nodeId: string) => ValidationIssue[];
+  validateConnection?: (
+    graph: GraphDSL,
+    fromNodeId: string,
+    toNodeId: string,
+    sourceHandle?: string,
+    targetHandle?: string
+  ) => ValidationIssue[];
   simulate?: unknown; // Will be defined in packages/sim
 }
 

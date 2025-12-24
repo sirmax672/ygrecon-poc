@@ -9,6 +9,7 @@
 
 export * from './registry.js';
 export * from './compiler.js';
+export * from './connectionValidator.js';
 export * from './types.js';
 
 

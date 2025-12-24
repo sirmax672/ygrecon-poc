@@ -47,6 +47,83 @@ describe('Graph Compiler', () => {
     const { issues } = compileGraph(dsl);
     expect(issues.some((i) => i.code === 'MISSING_NODE_REF')).toBe(true);
   });
+
+  it('should detect duplicate edge IDs', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      edges: [
+        { id: 'e1', from: 'n1', to: 'n2', params: {} },
+        { id: 'e1', from: 'n2', to: 'n1', params: {} },
+      ],
+    };
+    const { issues } = compileGraph(dsl);
+    expect(issues.some((i) => i.code === 'DUPLICATE_EDGE_ID')).toBe(true);
+  });
+
+  it('should detect missing source node reference', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      edges: [
+        { id: 'e1', from: 'nonexistent', to: 'n2', params: {} },
+      ],
+    };
+    const { issues } = compileGraph(dsl);
+    expect(issues.some((i) => i.code === 'MISSING_NODE_REF' && i.nodeId === 'nonexistent')).toBe(true);
+  });
+
+  it('should detect unknown node types', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      nodes: [
+        { id: 'n1', type: 'unknown.Type', params: {} },
+      ],
+    };
+    const { issues } = compileGraph(dsl);
+    expect(issues.some((i) => i.code === 'UNKNOWN_NODE_TYPE' && i.nodeId === 'n1')).toBe(true);
+  });
+
+  it('should build correct adjacency lists', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      nodes: [
+        { id: 'n1', type: 'core.Source', params: {} },
+        { id: 'n2', type: 'core.Pool', params: {} },
+        { id: 'n3', type: 'core.Pool', params: {} },
+      ],
+      edges: [
+        { id: 'e1', from: 'n1', to: 'n2', params: {} },
+        { id: 'e2', from: 'n1', to: 'n3', params: {} },
+      ],
+    };
+    const { graph } = compileGraph(dsl);
+    expect(graph.adjacency.get('n1')).toEqual(['e1', 'e2']);
+    expect(graph.reverseAdjacency.get('n2')).toEqual(['e1']);
+    expect(graph.reverseAdjacency.get('n3')).toEqual(['e2']);
+  });
+
+  it('should detect duplicate connections via connection validator', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      edges: [
+        { id: 'e1', from: 'n1', to: 'n2', params: {} },
+        { id: 'e2', from: 'n1', to: 'n2', params: {} },
+      ],
+    };
+    const { issues } = compileGraph(dsl);
+    expect(issues.some((i) => i.code === 'DUPLICATE_CONNECTION')).toBe(true);
+  });
+
+  it('should detect reverse connection on same handles via connection validator', () => {
+    const dsl: GraphDSL = {
+      ...validDSL,
+      edges: [
+        { id: 'e1', from: 'n1', to: 'n2', params: { sourceHandle: 'output', targetHandle: 'input' } },
+        { id: 'e2', from: 'n2', to: 'n1', params: { sourceHandle: 'input', targetHandle: 'output' } },
+      ],
+    };
+    const { issues } = compileGraph(dsl);
+    expect(issues.some((i) => i.code === 'REVERSE_CONNECTION_ON_SAME_HANDLES')).toBe(true);
+  });
 });
 
 

@@ -1,6 +1,7 @@
 import type { GraphDSL } from '@ygrecon/dsl';
 import type { CompiledGraph, ValidationIssue } from './types.js';
 import { nodeTypeRegistry } from './registry.js';
+import { validateConnections } from './connectionValidator.js';
 
 /**
  * Compile a validated DSL graph into a runtime structure.
@@ -79,6 +80,16 @@ export function compileGraph(dsl: GraphDSL): {
         nodeId: node.id,
       });
     }
+  }
+
+  // Validate connections (base rules + node-type-specific)
+  // Only validate if nodes exist (skip edges with missing refs)
+  const validEdges = dsl.edges.filter(
+    (edge) => nodes.has(edge.from) && nodes.has(edge.to)
+  );
+  if (validEdges.length > 0) {
+    const connectionIssues = validateConnections(dsl);
+    issues.push(...connectionIssues);
   }
 
   const graph: CompiledGraph = {

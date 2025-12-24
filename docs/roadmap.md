@@ -40,18 +40,64 @@ Rules:
 **Goal:** build and edit graphs in the browser; import/export DSL JSON.
 
 ### Deliverables
-- [ ] XYFlow canvas: create nodes, connect edges, move nodes
-- [ ] Node palette (left): add core node types
-- [ ] Inspector (right): edit selected node/edge parameters
-- [ ] Import/Export JSON:
-  - [ ] Export current graph (DSL JSON)
-  - [ ] Import DSL JSON with validation; show errors in UI
-- [ ] Validation in `packages/core`: missing refs, duplicate ids, unknown type ids
-- [ ] No simulation logic in `apps/web`
+- [x] XYFlow canvas: create nodes, connect edges, move nodes
+- [x] Directed edges:
+  - [x] All edges are directed and visually show direction (arrow marker)
+  - [x] Default edge options include direction marker
+- [x] Multi-handle node connections (ports):
+  - [x] Nodes expose multiple connection points (handles) per side (at least Top/Right/Bottom/Left)
+  - [x] Edges persist which exact handle they connect to (`sourceHandle`, `targetHandle`) in state and in exported DSL
+  - [x] On import, edges restore the same handles
+- [x] Edge reconnection (retargeting):
+  - [x] User can grab an existing edge near the **target** and drag to another valid target handle/node
+  - [x] Reconnection updates `target`, `targetHandle` and persists in DSL
+- [x] Selection + delete:
+  - [x] Nodes and edges can be selected (click; multi-select optional)
+  - [x] Pressing **Delete/Backspace** removes selected nodes/edges
+- [x] Node palette (left): add core node types
+- [x] Inspector (right): edit selected node/edge parameters
+- [x] Import/Export JSON:
+  - [x] Export current graph (DSL JSON)
+  - [x] Import DSL JSON with validation; show errors in UI
+- [x] Validation in `packages/core`: missing refs, duplicate ids, unknown type ids
+- [x] No simulation logic in `apps/web`
 
 ### DoD
 - User can assemble a graph, configure params, export, import, and see validation errors
 - Unit tests exist for DSL parsing and compiler validation
+
+---
+
+## Iteration A2 — Editable Edge Geometry (Polyline / Bend Points)
+
+**Goal:** allow users to control edge geometry (not only automatic straight/curved lines).
+
+### Deliverables
+- [ ] Edge geometry model:
+  - [ ] Introduce a new edge type: `polyline`
+  - [ ] Persist bend points in `edge.data.points` as an ordered list: `[{ x, y }, ...]`
+  - [ ] Export/Import DSL must round-trip `edge.data.points`
+- [ ] Rendering:
+  - [ ] `polyline` edges render as straight segments through the bend points (source -> p1 -> ... -> target)
+  - [ ] Keep arrow marker direction correct
+- [ ] Editing UX:
+  - [ ] Select an edge shows its control points
+  - [ ] Drag control points to reshape the polyline
+  - [ ] Add a new control point (e.g., double-click on edge segment)
+  - [ ] Remove a control point (e.g., Alt-click, right-click)
+  - [ ] Edge reconnection from Iteration A must continue to work and preserve points (or adjust endpoints only)
+- [ ] Constraints & guardrails:
+  - [ ] No simulation logic
+  - [ ] No external paid/proprietary packages for editable edges
+  - [ ] Keep implementation UI-only + DSL persistence (engine will ignore geometry)
+- [ ] Tests:
+  - [ ] DSL schema test: points serialize/deserialize correctly
+  - [ ] Minimal UI-level logic tests where feasible (or unit tests for helper functions that update points)
+
+### DoD
+- User can reshape an edge by adding/removing/dragging bend points.
+- Points persist through export/import.
+- Existing features from Iteration A remain intact (handles, reconnection, delete, directed edges).
 
 ---
 

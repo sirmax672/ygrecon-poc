@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "@xyflow/react": "^12.0.0",
+    "@ygrecon/core": "workspace:^",
+    "@ygrecon/dsl": "workspace:^",
+    "@ygrecon/node-types-core": "workspace:^",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
@@ -27,5 +31,3 @@
     "vite": "^5.0.8"
   }
 }
-
-
