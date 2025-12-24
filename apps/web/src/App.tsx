@@ -291,6 +291,18 @@ function Canvas() {
   // Handle delete key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't delete if focus is in an input field
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        (activeElement instanceof HTMLElement && activeElement.isContentEditable)
+      );
+      
+      if (isInputFocused) {
+        return; // Let input handle its own keys
+      }
+      
       if ((e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.metaKey) {
         if (selectedNodeId) {
           const newNodes = nodes.filter((n) => n.id !== selectedNodeId);

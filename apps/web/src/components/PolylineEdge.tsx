@@ -15,6 +15,45 @@ interface Point {
 }
 
 /**
+ * Calculate point on polyline at given percentage (0-1) along the path
+ */
+function getPointOnPolyline(
+  segments: Array<{ startX: number; startY: number; endX: number; endY: number; length: number }>,
+  percentage: number
+): { x: number; y: number } {
+  if (segments.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  
+  const totalLength = segments.reduce((sum, seg) => sum + seg.length, 0);
+  const targetDistance = totalLength * percentage;
+  
+  let accumulatedLength = 0;
+  for (const segment of segments) {
+    if (accumulatedLength + segment.length >= targetDistance) {
+      // Point is on this segment
+      const segmentProgress = (targetDistance - accumulatedLength) / segment.length;
+      return {
+        x: segment.startX + (segment.endX - segment.startX) * segmentProgress,
+        y: segment.startY + (segment.endY - segment.startY) * segmentProgress,
+      };
+    }
+    accumulatedLength += segment.length;
+  }
+  
+  // Return last point if percentage is >= 1
+  const lastSegment = segments[segments.length - 1];
+  return { x: lastSegment.endX, y: lastSegment.endY };
+}
+
+/**
+ * Calculate distance between two points
+ */
+function getDistance(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+/**
  * Polyline edge component that supports editable bend points.
  * Renders straight segments through control points: source -> p1 -> ... -> target
  */
@@ -33,8 +72,13 @@ export const PolylineEdge: React.FC<EdgeProps> = ({
 }) => {
   const reactFlowInstance = useReactFlow();
   const points: Point[] = (data?.points as Point[]) || [];
+  const params = (data?.params as Record<string, unknown>) || {};
+  const label = (params.label as string) || '';
+  const formula = (params.formula as string) || '';
+  const formulaPosition = (params.formulaPosition as number) ?? 0.5; // Default to middle (0-1)
   const edgeSegmentsCount = points.length + 1;
   const edgeSegmentsArray: Array<{ edgePath: string; labelX: number; labelY: number }> = [];
+  const segments: Array<{ startX: number; startY: number; endX: number; endY: number; length: number }> = [];
 
   // Calculate segments: source -> p1 -> ... -> target
   for (let i = 0; i < edgeSegmentsCount; i++) {
@@ -68,26 +112,46 @@ export const PolylineEdge: React.FC<EdgeProps> = ({
       targetY: segmentTargetY,
     });
     edgeSegmentsArray.push({ edgePath, labelX, labelY });
+    
+    // Store segment info for formula positioning
+    const length = getDistance(segmentSourceX, segmentSourceY, segmentTargetX, segmentTargetY);
+    segments.push({
+      startX: segmentSourceX,
+      startY: segmentSourceY,
+      endX: segmentTargetX,
+      endY: segmentTargetY,
+      length,
+    });
   }
+  
+  // Calculate label/formula block position on the edge
+  // Show block if either label or formula exists
+  const showLabelFormulaBlock = label || formula;
+  const blockPoint = showLabelFormulaBlock ? getPointOnPolyline(segments, formulaPosition) : null;
 
-  const updateEdgePoints = (updater: (points: Point[]) => Point[]) => {
+  const updateEdgeData = (updater: (currentData: Record<string, unknown>) => Record<string, unknown>) => {
     reactFlowInstance.setEdges((edges) => {
       const edgeIndex = edges.findIndex((edge) => edge.id === id);
       if (edgeIndex === -1) return edges;
 
-      const currentPoints = (edges[edgeIndex].data?.points as Point[]) || [];
-      const newPoints = updater(currentPoints);
-      
-      // Always keep polyline type, even with empty points
+      const currentData = edges[edgeIndex].data || {};
       edges[edgeIndex] = {
         ...edges[edgeIndex],
         type: 'polyline',
-        data: {
-          ...edges[edgeIndex].data,
-          points: newPoints,
-        },
+        data: updater(currentData as Record<string, unknown>),
       };
       return edges;
+    });
+  };
+
+  const updateEdgePoints = (updater: (points: Point[]) => Point[]) => {
+    updateEdgeData((currentData) => {
+      const currentPoints = (currentData.points as Point[]) || [];
+      const newPoints = updater(currentPoints);
+      return {
+        ...currentData,
+        points: newPoints,
+      };
     });
   };
 
@@ -200,6 +264,111 @@ export const PolylineEdge: React.FC<EdgeProps> = ({
           </div>
         </EdgeLabelRenderer>
       ))}
+      
+      {/* Render label/formula block - label above formula block, centered */}
+      {/* Formula block is positioned exactly on the edge, label is above it */}
+      {showLabelFormulaBlock && blockPoint && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${blockPoint.x}px,${blockPoint.y}px)`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              pointerEvents: 'all',
+            }}
+          >
+            {/* Label above formula block */}
+            {label && (
+              <div
+                className="edge-label"
+                style={{
+                  fontSize: '11px',
+                  color: '#666',
+                  marginBottom: formula ? '4px' : '0',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label}
+              </div>
+            )}
+            
+            {/* Formula block - positioned exactly on edge (centered at blockPoint) */}
+            {formula && (
+              <div
+                className="edge-formula"
+                style={{
+                  fontSize: '12px',
+                  backgroundColor: '#fff',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #007bff',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  boxShadow: selected ? '0 0 4px rgba(0, 123, 255, 0.5)' : '0 1px 3px rgba(0, 0, 0, 0.2)',
+                }}
+                onMouseDown={(event) => {
+                  
+                  event.preventDefault();
+                  event.stopPropagation();
+                  
+                  const handleMouseMove = (moveEvent: MouseEvent) => {
+                    const flowPosition = reactFlowInstance.screenToFlowPosition({
+                      x: moveEvent.clientX,
+                      y: moveEvent.clientY,
+                    });
+                    
+                    // Find closest point on polyline
+                    let minDistance = Infinity;
+                    let closestPercentage = 0.5;
+                    
+                    // Sample points along the polyline to find closest
+                    const samples = 100;
+                    for (let i = 0; i <= samples; i++) {
+                      const percentage = i / samples;
+                      const pointOnEdge = getPointOnPolyline(segments, percentage);
+                      const distance = getDistance(
+                        flowPosition.x,
+                        flowPosition.y,
+                        pointOnEdge.x,
+                        pointOnEdge.y
+                      );
+                      
+                      if (distance < minDistance) {
+                        minDistance = distance;
+                        closestPercentage = percentage;
+                      }
+                    }
+                    
+                    // Update formula position
+                    updateEdgeData((currentData) => ({
+                      ...currentData,
+                      params: {
+                        ...(currentData.params as Record<string, unknown> || {}),
+                        formulaPosition: closestPercentage,
+                      },
+                    }));
+                  };
+                  
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
+                  
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
+                }}
+              >
+                <div style={{ fontFamily: 'Courier New, monospace', fontWeight: 'bold' }}>
+                  {formula}
+                </div>
+              </div>
+            )}
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 };

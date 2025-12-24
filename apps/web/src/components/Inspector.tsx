@@ -247,6 +247,10 @@ export function Inspector() {
   }
   
   if (selectedEdge) {
+    const edgeParams = (selectedEdge.data?.params as Record<string, unknown>) || {};
+    const edgeLabel = (edgeParams.label as string) || '';
+    const edgeFormula = (edgeParams.formula as string) || '';
+    
     return (
       <div
         style={{
@@ -273,16 +277,53 @@ export function Inspector() {
             </label>
           </div>
           
-          <h4 style={{ fontSize: '14px', marginBottom: '12px' }}>Parameters</h4>
-          {Object.entries(localParams).map(([key, value]) => (
-            <ParamField
-              key={key}
-              name={key}
-              schema={{ _def: { typeName: 'ZodString' } }}
-              value={value}
-              onChange={(val) => handleParamChange(key, val)}
+          {/* Label field */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 'bold' }}>
+              Label
+            </label>
+            <input
+              type="text"
+              value={edgeLabel}
+              onChange={(e) => {
+                handleParamChange('label', e.target.value);
+              }}
+              placeholder="Edge label (empty to hide)"
+              style={{ width: '100%', padding: '4px', fontSize: '12px' }}
             />
-          ))}
+          </div>
+          
+          {/* Formula field */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 'bold' }}>
+              Formula
+            </label>
+            <input
+              type="text"
+              value={edgeFormula}
+              onChange={(e) => {
+                handleParamChange('formula', e.target.value);
+              }}
+              placeholder="Formula expression (empty to hide)"
+              style={{ width: '100%', padding: '4px', fontSize: '12px' }}
+            />
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+              Drag the formula block along the edge to reposition it
+            </div>
+          </div>
+          
+          <h4 style={{ fontSize: '14px', marginBottom: '12px', marginTop: '16px' }}>Other Parameters</h4>
+          {Object.entries(localParams)
+            .filter(([key]) => key !== 'label' && key !== 'formula' && key !== 'formulaPosition')
+            .map(([key, value]) => (
+              <ParamField
+                key={key}
+                name={key}
+                schema={{ _def: { typeName: 'ZodString' } }}
+                value={value}
+                onChange={(val) => handleParamChange(key, val)}
+              />
+            ))}
         </div>
       </div>
     );
