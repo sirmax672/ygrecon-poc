@@ -24,12 +24,18 @@ import { CustomNode } from './components/CustomNode';
 import { NodePalette } from './components/NodePalette';
 import { Inspector } from './components/Inspector';
 import { ImportExport } from './components/ImportExport';
+import { PolylineEdge } from './components/PolylineEdge';
+import { ConnectionLine } from './components/ConnectionLine';
 import { xyFlowToDSL } from './utils/dslConverter';
 import { validateConnections, type ValidationIssue } from '@ygrecon/core';
 import './App.css';
 
 const nodeTypes = {
   custom: CustomNode,
+};
+
+const edgeTypes = {
+  polyline: PolylineEdge,
 };
 
 function Canvas() {
@@ -104,13 +110,35 @@ function Canvas() {
   
   const onReconnect: OnReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
+      // For polyline edges, preserve all points when reconnecting
+      // Only the target endpoint changes, all intermediate points stay the same
+      const oldPoints = (oldEdge.data?.points as Array<{ x: number; y: number }>) || [];
+      const oldData = oldEdge.data || {};
+      
       // reconnectEdge handles the reconnection and uses the actual handle IDs from ReactFlow
       const updatedEdges = reconnectEdge(oldEdge, newConnection, edges);
-      setEdges(updatedEdges);
+      
+      // Preserve points and type for polyline edges
+      const finalEdges = updatedEdges.map((edge) => {
+        if (edge.id === oldEdge.id) {
+          return {
+            ...edge,
+            type: 'polyline', // Always keep polyline type
+            data: {
+              ...oldData, // Preserve all old data
+              ...edge.data, // Merge with new data from reconnectEdge
+              points: oldPoints, // Preserve all existing points (even if empty)
+            },
+          };
+        }
+        return edge;
+      });
+      
+      setEdges(finalEdges);
       
       // Update DSL (normalization happens in xyFlowToDSL)
       if (dsl) {
-        const newDSL = xyFlowToDSL(nodes, updatedEdges, dsl);
+        const newDSL = xyFlowToDSL(nodes, finalEdges, dsl);
         setDSL(newDSL);
       }
     },
@@ -170,6 +198,7 @@ function Canvas() {
         id: `edge_${Date.now()}`,
         source: finalSource,
         target: finalTarget,
+        type: 'polyline', // Use polyline edge type by default
         sourceHandle: finalSourceHandle,
         targetHandle: finalTargetHandle,
         markerEnd: {
@@ -177,6 +206,7 @@ function Canvas() {
         },
         data: {
           params: {},
+          points: [], // Initialize with empty points array
         },
       };
       
@@ -224,6 +254,39 @@ function Canvas() {
     },
     [nodes, edges, dsl, setEdges, setDSL, setValidationErrors, connectionStartNode]
   );
+  
+  // Ensure all edges have polyline type
+  useEffect(() => {
+    const edgesToUpdate = edges.filter(
+      (edge) => !edge.type || edge.type !== 'polyline'
+    );
+    
+    if (edgesToUpdate.length > 0) {
+      const updatedEdges = edges.map((edge) => {
+        if (!edge.type || edge.type !== 'polyline') {
+          return {
+            ...edge,
+            type: 'polyline',
+            data: {
+              ...edge.data,
+              points: edge.data?.points || [],
+            },
+          };
+        }
+        return edge;
+      });
+      
+      // Only update if there are actual changes
+      const hasChanges = updatedEdges.some((edge, idx) => 
+        edge.type !== edges[idx]?.type || 
+        JSON.stringify(edge.data?.points) !== JSON.stringify(edges[idx]?.data?.points)
+      );
+      
+      if (hasChanges) {
+        setEdges(updatedEdges, false); // Don't save history for this migration
+      }
+    }
+  }, [edges.length]); // Only run when number of edges changes
   
   // Handle delete key
   useEffect(() => {
@@ -284,6 +347,17 @@ function Canvas() {
       onConnectStart={onConnectStart}
       onReconnect={onReconnect}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      connectionLineComponent={ConnectionLine}
+      defaultEdgeOptions={{
+        type: 'polyline',
+        markerEnd: {
+          type: 'arrowclosed',
+        },
+        data: {
+          points: [],
+        },
+      }}
       fitView
       deleteKeyCode={null} // We handle delete manually
     >

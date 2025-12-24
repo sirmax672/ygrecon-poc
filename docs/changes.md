@@ -42,3 +42,34 @@ Template:
   - Node types can now optionally export `validateConnection` function to enforce type-specific rules (e.g., Source can only have outgoing edges).
   - Validation is called automatically during compilation. Existing graphs will be validated on next compile.
   - See ADR 004 for architectural details.
+
+## 2025-01-XX
+- Change: Iteration A2 — Editable Edge Geometry implemented. Added polyline edge type with editable bend points.
+- Reason: Users need manual control over edge geometry for better diagram layout and clarity.
+- Impact: 
+  - apps/web: New `PolylineEdge` and `ClickableBaseEdge` components, updated `dslConverter` to handle points
+  - packages/dsl: Added tests for points serialization/deserialization
+  - Edge geometry persisted in `edge.params.points` as `Array<{ x: number; y: number }>`
+- Migration/Notes:
+  - Existing edges without points continue to work as before (default edge type)
+  - When points are added to an edge (via double-click), edge type automatically changes to `polyline`
+  - Points are stored in `edge.params.points` in DSL and `edge.data.points` in ReactFlow state
+  - Edge reconnection preserves existing points (only endpoints change)
+  - Control points are only visible when edge is selected
+  - Double-click on edge segment adds a new control point
+  - Right-click on control point removes it
+  - Drag control points to reshape the polyline
+  - See ADR 002 for architectural details
+
+## 2025-01-XX
+- Change: Added visualization data to DSL: node positions and edge handles.
+- Reason: DSL should preserve all editor state for round-trip import/export, including visualization layout.
+- Impact:
+  - packages/dsl: Updated GraphDSL type and schema to include optional `position: { x, y }` in nodes
+  - apps/web: Updated `dslConverter` to save/load node positions and edge handles (sourceHandle, targetHandle)
+  - packages/examples: Updated example DSL file with positions and handles
+- Migration/Notes:
+  - `node.position` is optional in DSL v0.2 - existing graphs without positions will work (defaults to { x: 0, y: 0 })
+  - Edge handles (`sourceHandle`, `targetHandle`) are stored in `edge.params` for visualization
+  - All visualization data is preserved through export/import cycles
+  - This is editor metadata - simulation engine ignores positions and handles

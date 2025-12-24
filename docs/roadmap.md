@@ -73,26 +73,26 @@ Rules:
 **Goal:** allow users to control edge geometry (not only automatic straight/curved lines).
 
 ### Deliverables
-- [ ] Edge geometry model:
-  - [ ] Introduce a new edge type: `polyline`
-  - [ ] Persist bend points in `edge.data.points` as an ordered list: `[{ x, y }, ...]`
-  - [ ] Export/Import DSL must round-trip `edge.data.points`
-- [ ] Rendering:
-  - [ ] `polyline` edges render as straight segments through the bend points (source -> p1 -> ... -> target)
-  - [ ] Keep arrow marker direction correct
-- [ ] Editing UX:
-  - [ ] Select an edge shows its control points
-  - [ ] Drag control points to reshape the polyline
-  - [ ] Add a new control point (e.g., double-click on edge segment)
-  - [ ] Remove a control point (e.g., Alt-click, right-click)
-  - [ ] Edge reconnection from Iteration A must continue to work and preserve points (or adjust endpoints only)
-- [ ] Constraints & guardrails:
-  - [ ] No simulation logic
-  - [ ] No external paid/proprietary packages for editable edges
-  - [ ] Keep implementation UI-only + DSL persistence (engine will ignore geometry)
-- [ ] Tests:
-  - [ ] DSL schema test: points serialize/deserialize correctly
-  - [ ] Minimal UI-level logic tests where feasible (or unit tests for helper functions that update points)
+- [x] Edge geometry model:
+  - [x] Introduce a new edge type: `polyline`
+  - [x] Persist bend points in `edge.data.points` as an ordered list: `[{ x, y }, ...]`
+  - [x] Export/Import DSL must round-trip `edge.data.points`
+- [x] Rendering:
+  - [x] `polyline` edges render as straight segments through the bend points (source -> p1 -> ... -> target)
+  - [x] Keep arrow marker direction correct
+- [x] Editing UX:
+  - [x] Select an edge shows its control points
+  - [x] Drag control points to reshape the polyline
+  - [x] Add a new control point (e.g., double-click on edge segment)
+  - [x] Remove a control point (e.g., Alt-click, right-click)
+  - [x] Edge reconnection from Iteration A must continue to work and preserve points (or adjust endpoints only)
+- [x] Constraints & guardrails:
+  - [x] No simulation logic
+  - [x] No external paid/proprietary packages for editable edges
+  - [x] Keep implementation UI-only + DSL persistence (engine will ignore geometry)
+- [x] Tests:
+  - [x] DSL schema test: points serialize/deserialize correctly
+  - [x] Minimal UI-level logic tests where feasible (or unit tests for helper functions that update points)
 
 ### DoD
 - User can reshape an edge by adding/removing/dragging bend points.

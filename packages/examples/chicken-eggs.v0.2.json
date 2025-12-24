@@ -15,6 +15,10 @@
       {
         "id": "src_buy_chicken",
         "type": "core.Source",
+        "position": {
+          "x": 100,
+          "y": 200
+        },
         "params": {
           "resourceId": "chicken",
           "mode": "interval",
@@ -25,6 +29,10 @@
       {
         "id": "rnd_drop",
         "type": "core.RandomSplit",
+        "position": {
+          "x": 300,
+          "y": 200
+        },
         "params": {
           "consumeInput": true
         }
@@ -32,6 +40,10 @@
       {
         "id": "pool_eggs",
         "type": "core.Pool",
+        "position": {
+          "x": 500,
+          "y": 100
+        },
         "params": {
           "resourceId": "egg",
           "initial": 0
@@ -40,6 +52,10 @@
       {
         "id": "pool_big_eggs",
         "type": "core.Pool",
+        "position": {
+          "x": 500,
+          "y": 300
+        },
         "params": {
           "resourceId": "big_egg",
           "initial": 0
@@ -53,7 +69,9 @@
         "to": "rnd_drop",
         "params": {
           "delayMs": 0,
-          "batch": 1
+          "batch": 1,
+          "sourceHandle": "right-1",
+          "targetHandle": "left-1"
         }
       },
       {
@@ -64,7 +82,9 @@
           "weight": 1,
           "outResourceId": "egg",
           "batch": 1,
-          "delayMs": 0
+          "delayMs": 0,
+          "sourceHandle": "top-1",
+          "targetHandle": "left-1"
         }
       },
       {
@@ -75,7 +95,9 @@
           "weight": 1,
           "outResourceId": "big_egg",
           "batch": 1,
-          "delayMs": 0
+          "delayMs": 0,
+          "sourceHandle": "bottom-1",
+          "targetHandle": "left-1"
         }
       }
     ]

@@ -36,6 +36,10 @@ export interface GraphDSL {
     id: string;
     type: string;
     params: Record<string, unknown>;
+    position?: {
+      x: number;
+      y: number;
+    };
   }>;
   edges: Array<{
     id: string;

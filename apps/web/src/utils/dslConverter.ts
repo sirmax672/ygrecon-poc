@@ -17,7 +17,7 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = dsl.nodes.map((node) => ({
     id: node.id,
     type: 'custom',
-    position: { x: 0, y: 0 }, // Will be set from saved position or default
+    position: node.position || { x: 0, y: 0 }, // Use saved position or default
     data: {
       label: node.id,
       type: node.type,
@@ -28,11 +28,14 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
   const edges: Edge[] = dsl.edges.map((edge) => {
     const sourceHandle = normalizeHandleId(edge.params.sourceHandle as string | undefined);
     const targetHandle = normalizeHandleId(edge.params.targetHandle as string | undefined);
+    const points = edge.params.points as Array<{ x: number; y: number }> | undefined;
     
+    // Use polyline type for all edges (allows adding points to any edge)
     return {
       id: edge.id,
       source: edge.from,
       target: edge.to,
+      type: 'polyline',
       // Source handles use base ID, target handles use base ID + "-target"
       sourceHandle: sourceHandle,
       targetHandle: targetHandle ? `${targetHandle}-target` : undefined,
@@ -41,6 +44,7 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
       },
       data: {
         params: edge.params,
+        points: points || [], // Store points in edge.data for PolylineEdge component
       },
     };
   });
@@ -62,21 +66,39 @@ export function xyFlowToDSL(
       id: node.id,
       type: node.data.type as string,
       params: node.data.params as Record<string, unknown>,
+      position: node.position, // Save node position for visualization
     })),
     edges: edges.map((edge) => {
       // Normalize handle IDs - remove -target suffix for storage
       const sourceHandle = normalizeHandleId(edge.sourceHandle);
       const targetHandle = normalizeHandleId(edge.targetHandle);
       
+      // Extract points from edge.data if present (for polyline edges)
+      const points = edge.data?.points as Array<{ x: number; y: number }> | undefined;
+      
+      // Build params object, always including handles and points (if present)
+      const edgeParams: Record<string, unknown> = {
+        ...(edge.data?.params as Record<string, unknown> | undefined),
+      };
+      
+      // Always save handles (even if undefined, they're part of visualization state)
+      if (sourceHandle !== undefined) {
+        edgeParams.sourceHandle = sourceHandle;
+      }
+      if (targetHandle !== undefined) {
+        edgeParams.targetHandle = targetHandle;
+      }
+      
+      // Persist points in edge params for DSL round-trip
+      if (points && points.length > 0) {
+        edgeParams.points = points;
+      }
+      
       return {
         id: edge.id,
         from: edge.source,
         to: edge.target,
-        params: {
-          ...(edge.data?.params as Record<string, unknown> | undefined),
-          sourceHandle: sourceHandle,
-          targetHandle: targetHandle,
-        },
+        params: edgeParams,
       };
     }),
   };

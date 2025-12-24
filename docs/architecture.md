@@ -65,10 +65,10 @@ No circular dependencies.
 - Human-friendly import/export: JSON (optional YAML later).
 
 ### Core structure (conceptual)
-- `dslVersion: string` (e.g., `"0.1"`)
+- `dslVersion: string` (e.g., `"0.2"`)
 - `meta`: name, seed, description
-- `nodes[]`: `{ id, type, params }`
-- `edges[]`: `{ id, from, to, params }`
+- `nodes[]`: `{ id, type, params, position? }` (position is optional editor metadata)
+- `edges[]`: `{ id, from, to, params }` (params may include sourceHandle, targetHandle, points for visualization)
 
 ### Validation
 - Validate with Zod in `packages/dsl`.

@@ -23,6 +23,10 @@ export const graphDSLSchemaV0_2 = z.object({
       id: z.string(),
       type: z.string(),
       params: z.record(z.unknown()),
+      position: z.object({
+        x: z.number(),
+        y: z.number(),
+      }).optional(),
     })
   ),
   edges: z.array(
