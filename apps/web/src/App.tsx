@@ -111,12 +111,73 @@ function Canvas() {
   const onReconnect: OnReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       // For polyline edges, preserve all points when reconnecting
-      // Only the target endpoint changes, all intermediate points stay the same
+      // Only the endpoint changes, all intermediate points stay the same
       const oldPoints = (oldEdge.data?.points as Array<{ x: number; y: number }>) || [];
       const oldData = oldEdge.data || {};
       
+      // Determine if we're reconnecting source or target by comparing old and new connections
+      const sourceChanged = oldEdge.source !== newConnection.source || 
+                           oldEdge.sourceHandle !== newConnection.sourceHandle;
+      const targetChanged = oldEdge.target !== newConnection.target || 
+                           oldEdge.targetHandle !== newConnection.targetHandle;
+      
+      // If both changed, prefer target (default React Flow behavior)
+      // If only source changed, we're reconnecting source
+      const isSourceReconnect = sourceChanged && !targetChanged;
+
+      // Normalize handles based on which endpoint is being reconnected
+      let normalizedConnection: Connection = { ...newConnection };
+      
+      if (isSourceReconnect) {
+        // Reconnecting source - normalize source handle (remove -target suffix if present)
+        if (normalizedConnection.sourceHandle && normalizedConnection.sourceHandle.endsWith('-target')) {
+          normalizedConnection.sourceHandle = normalizedConnection.sourceHandle.replace(/-target$/, '');
+        }
+      } else {
+        // Reconnecting target - normalize target handle (add -target suffix if missing)
+        if (normalizedConnection.targetHandle && !normalizedConnection.targetHandle.endsWith('-target')) {
+          normalizedConnection.targetHandle = `${normalizedConnection.targetHandle}-target`;
+        }
+      }
+
+      // Validate connection before reconnecting
+      if (dsl) {
+        const tempEdge: Edge = {
+          ...oldEdge,
+          source: normalizedConnection.source || oldEdge.source,
+          target: normalizedConnection.target || oldEdge.target,
+          sourceHandle: normalizedConnection.sourceHandle || oldEdge.sourceHandle,
+          targetHandle: normalizedConnection.targetHandle || oldEdge.targetHandle,
+        };
+        
+        const tempEdges = edges.map((e) => (e.id === oldEdge.id ? tempEdge : e));
+        const tempDSL = xyFlowToDSL(nodes, tempEdges, dsl);
+        const issues = validateConnections(tempDSL);
+        
+        // Filter only connection-related issues for this specific edge
+        const connectionIssues = issues.filter(
+          (issue: ValidationIssue) =>
+            issue.edgeId === oldEdge.id &&
+            (issue.code === 'DUPLICATE_CONNECTION' ||
+              issue.code === 'REVERSE_CONNECTION_ON_SAME_HANDLES' ||
+              issue.code?.startsWith('INVALID_'))
+        );
+        
+        if (connectionIssues.length > 0) {
+          // Show validation errors and prevent reconnection
+          const errorMessages = connectionIssues.map(
+            (issue: ValidationIssue) => `${issue.code}: ${issue.message}`
+          );
+          setValidationErrors(errorMessages);
+          return;
+        }
+        
+        // Clear validation errors if connection is valid
+        setValidationErrors([]);
+      }
+
       // reconnectEdge handles the reconnection and uses the actual handle IDs from ReactFlow
-      const updatedEdges = reconnectEdge(oldEdge, newConnection, edges);
+      const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
       
       // Preserve points and type for polyline edges
       const finalEdges = updatedEdges.map((edge) => {
@@ -142,7 +203,7 @@ function Canvas() {
         setDSL(newDSL);
       }
     },
-    [nodes, edges, dsl, setEdges, setDSL]
+    [nodes, edges, dsl, setEdges, setDSL, setValidationErrors]
   );
   
   const onConnectStart: OnConnectStart = useCallback(

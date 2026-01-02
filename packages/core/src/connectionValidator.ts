@@ -27,6 +27,11 @@ function getEdgeHandles(edge: GraphDSL['edges'][0]): {
  * Validate all edge connections in a graph.
  * Performs base-level structural checks and delegates node-type-specific
  * validation to node type plugins.
+ * 
+ * NOTE: This validator allows any handlers/ports to be used for connections.
+ * The ports list in NodeTypeDefinition is informational only and does not
+ * restrict which handlers can be used. Node types can optionally implement
+ * validateConnection to enforce type-specific rules.
  *
  * @param dsl - The graph DSL to validate
  * @returns Array of validation issues (empty if all valid)
