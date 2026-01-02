@@ -28,18 +28,21 @@ This document is the **source of truth** for structure, boundaries, and contract
 ## Repository Layout (pnpm monorepo)
 ```
 /apps
-/web # React UI
+/web # React UI (visualization only)
+/backend # Python FastAPI backend (validation + simulation)
 /packages
 /dsl # Graph DSL schema, validation, migrations
-/core # Registry, compiler, validation
-/sim # Simulation engine + runtime state
-/node-types-core # core.* node type plugins
+/core # Registry, compiler, validation (TypeScript, used by frontend)
+/sim # Simulation engine interfaces (TypeScript, for reference; implementation in backend)
+/node-types-core # core.* node type plugins (TypeScript for frontend, Python for backend)
 /node-types-economy # example domain plugin (later)
 /viz # UI-agnostic visualization helpers
 /examples # example graphs + golden tests
 /docs
 roadmap.md
 architecture.md
+simulation-process.md # Step/turn/handle requirements
+websocket-protocol.md # Client-server protocol specification
 changes.md
 /adr
 ```
@@ -48,7 +51,8 @@ changes.md
 - `dsl` is the lowest layer; imports nothing from above.
 - `core` and `sim` depend on `dsl`.
 - node-type packages depend on `dsl` + `sim` (and optionally `core` types if kept low-level).
-- `apps/web` depends on everything, but nothing depends on `apps/web`.
+- `apps/web` depends on TypeScript packages, but nothing depends on `apps/web`.
+- `apps/backend` is independent; shares DSL schema with TypeScript packages (via JSON Schema or manual sync).
 
 No circular dependencies.
 
@@ -127,33 +131,177 @@ Each node type plugin exports:
 
 ---
 
+## Backend Architecture
+
+### Overview
+- **Location**: `apps/backend/` (Python FastAPI)
+- **Purpose**: Validation and simulation execution
+- **Communication**: WebSocket for real-time bidirectional communication
+
+### Structure
+```
+apps/backend/
+  src/
+    main.py              # FastAPI app entry point
+    api/
+      websocket.py       # WebSocket endpoint for validation + simulation
+    engine/
+      simulator.py       # Simulation engine (step/turn logic)
+      types.py           # Python types matching TypeScript
+    validation/
+      dsl_validator.py   # DSL validation (Pydantic)
+      connection_validator.py  # Connection validation
+    node_types/
+      base.py            # Base node handler interface
+      core/               # Core node type handlers (Python)
+        source.py
+        pool.py
+        drain.py
+        ...
+    shared/
+      dsl_schema.py      # Pydantic models for DSL
+```
+
+### API Protocol
+
+**Session Model:**
+- Each WebSocket connection = one session
+- One session = one project (graph) — 1:1 relationship
+- Backend maintains graph state in memory per session
+- Frontend sends incremental actions (create/update/delete nodes/edges)
+- Frontend does NOT send full graph on each action
+
+**WebSocket Messages** (see `docs/websocket-protocol.md` for complete specification):
+
+Frontend → Backend:
+- `create_node`, `update_node`, `delete_node`: Node management
+- `create_edge`, `update_edge`, `delete_edge`: Edge management
+- `validate_connection`: Real-time validation (before creating edge)
+- `get_graph`: Request current graph state
+- `start_simulation`, `step_simulation`, `run_turn`, `pause_simulation`, `reset_simulation`: Simulation control
+
+Backend → Frontend:
+- `session_created`: Session initialized (sent on connect)
+- `node_created`, `node_updated`, `node_deleted`: Node action confirmations
+- `edge_created`, `edge_updated`, `edge_deleted`: Edge action confirmations
+- `validation_result`: Validation response
+- `graph_state`: Current graph state
+- `simulation_state`: Updated state (nodes, tokens, turn/step counters)
+- `error`: Error message
+
+See `docs/websocket-protocol.md` for complete message specification and `docs/adr/005-backend-architecture.md` for architectural decisions.
+
+### Development Setup
+- `pnpm dev` runs both frontend (Vite) and backend (uvicorn) concurrently
+- Vite proxy forwards `/api` and `/ws` to backend (localhost:8000)
+- Backend auto-reloads on Python file changes
+
+See `docs/adr/005-backend-architecture.md` for architectural decisions.
+
+---
+
+## Backend Architecture
+
+### API Protocol
+
+The backend (`apps/backend`) communicates with the frontend via **WebSocket** using a session-based protocol.
+
+**Session Model:**
+- One WebSocket connection = one session
+- One session = one graph (1:1 relationship)
+- Backend maintains graph state in memory per session
+- Frontend sends **incremental actions** (create_node, create_edge, update, delete)
+- Frontend does NOT send full graph on each action
+- Session is created on connect, destroyed on disconnect
+
+**Message Types:**
+- Frontend → Backend: `create_node`, `update_node`, `delete_node`, `create_edge`, `update_edge`, `delete_edge`, `validate_connection`, `get_graph`
+- Backend → Frontend: `session_created`, `node_created`, `edge_created`, `validation_result`, `graph_state`, `error`
+
+See `docs/websocket-protocol.md` for complete protocol specification.
+
+### Backend Structure
+
+```
+apps/backend/
+  src/
+    main.py                    # FastAPI app entry point
+    api/
+      websocket.py            # WebSocket handler with session management
+      session.py               # Session class (graph state storage)
+    validation/
+      dsl_validator.py        # DSL structure validation (Pydantic)
+      connection_validator.py # Connection validation logic
+    node_types/
+      base.py                  # Base node type interface
+      core/                     # Core node type implementations
+        source.py
+        pool.py
+        drain.py
+        ...
+    shared/
+      dsl_schema.py           # Pydantic models for DSL (synced with TypeScript)
+```
+
+### Type Synchronization
+
+- DSL schema is manually synchronized between TypeScript (`packages/dsl`) and Python (`apps/backend/src/shared/dsl_schema.py`)
+- Both use JSON Schema-compatible structures
+- Future: Generate one from the other via JSON Schema
+
+---
+
 ## Simulation Engine
 
 ### Model
-- Discrete-event simulation (event queue).
-- Events include:
-  - `TokenArriveNode`
-  - `TransferStart`
-  - `TransferComplete`
-  - node-specific events (optional)
+- **Step/Turn model** (see `docs/simulation-process.md` for detailed requirements):
+  - **Turn**: Complete cycle from Source nodes until no resources are transferred
+  - **Step**: One iteration processing all active nodes (nodes with input resources)
+  - Each node implements `handle()` method that processes input resources
 
-### Engine API (conceptual)
-- `reset(compiledGraph, settings)`
-- `step()` (process next event)
-- `runForSteps(n)` / `runForMs(ms)`
-- `pause()`
-- `getState()`
-- `subscribe(listener)` (optional)
+### Node Handler Interface
 
-### Runtime state (conceptual)
-- `nodeState[nodeId]`: counters, resource balances, custom plugin state
-- `edgeState[edgeId]`: queued transfers
-- `tokens[]`: active tokens in transit (for UI animation)
-- `log[]`: events emitted for debug
+Every node type must implement `handle()` on backend:
+
+```python
+def handle(
+    node_id: str,
+    input_resources: List[Resource],
+    outgoing_edges: List[Edge],
+    node_state: NodeState,
+    rng: RNG
+) -> HandleResult:
+    """
+    Returns:
+    - emitted: Resources to send to other nodes
+    - stored: Amount to add to stored_resources
+    - consumed: Amount consumed (removed from simulation)
+    """
+```
+
+### Engine API (Backend)
+- `start_simulation(graph, settings)`: Initialize simulation
+- `step()`: Execute one step (process all active nodes)
+- `run_turn()`: Execute complete turn (steps until no transfers)
+- `pause()` / `reset()`
+- `get_state()`: Return current simulation state
+
+### Runtime state (Backend → Frontend)
+- `nodeState[nodeId]`:
+  - `stored_resources`: Resources stored in node (for visualization)
+  - `consumed_resources`: Total consumed (for visualization)
+  - `counters`: Custom plugin counters
+- `tokens[]`: Active tokens in transit (for UI animation)
+- `turn`, `step`: Current turn and step numbers
+
+**Important**: `stored_resources` and `consumed_resources` are visualization-only. They are outputs of `handle()`, not inputs to simulation logic.
 
 ### Deterministic RNG
 - RNG is seeded from `meta.seed` (or engine settings).
-- Weighted routing and any randomness go through RNG only.
+- All randomness (weighted routing, etc.) goes through RNG only.
+- Same seed + same graph + same settings => identical results.
+
+See `docs/simulation-process.md` for complete simulation process requirements.
 
 ---
 

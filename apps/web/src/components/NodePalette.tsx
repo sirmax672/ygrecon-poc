@@ -2,6 +2,7 @@ import { useEditorStore } from '../store/editorStore';
 import { nodeTypeRegistry } from '@ygrecon/core';
 import { useCallback } from 'react';
 import type { Node } from '@xyflow/react';
+import { getWebSocketClient } from '../services/websocket';
 
 export function NodePalette() {
   const { 
@@ -11,10 +12,11 @@ export function NodePalette() {
     setDSL,
     edgeCreationMode,
     setEdgeCreationMode,
+    setValidationErrors,
   } = useEditorStore();
   const nodeTypes = nodeTypeRegistry.getAll();
   
-  const handleAddNode = useCallback((typeId: string) => {
+  const handleAddNode = useCallback(async (typeId: string) => {
     if (!dsl) return;
     
     const nodeType = nodeTypeRegistry.get(typeId);
@@ -29,14 +31,16 @@ export function NodePalette() {
       nodeId = `${baseId}_${counter}`;
     }
     
-    // Create new node
+    const position = {
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 400 + 100,
+    };
+    
+    // Create new node locally first (optimistic update)
     const newNode: Node = {
       id: nodeId,
       type: 'custom',
-      position: {
-        x: Math.random() * 400 + 100,
-        y: Math.random() * 400 + 100,
-      },
+      position,
       data: {
         label: nodeId,
         type: typeId,
@@ -44,24 +48,56 @@ export function NodePalette() {
       },
     };
     
-    // Update nodes
     const newNodes = [...nodes, newNode];
     setNodes(newNodes);
     
-    // Update DSL
-    const newDSL = {
-      ...dsl,
-      nodes: [
-        ...dsl.nodes,
-        {
-          id: nodeId,
-          type: typeId,
-          params: {},
-        },
-      ],
-    };
-    setDSL(newDSL);
-  }, [nodes, dsl, setNodes, setDSL]);
+    // Send to backend
+    try {
+      const wsClient = getWebSocketClient();
+      const result = await wsClient.createNode(nodeId, typeId, {}, position);
+      
+      if (!result.valid && result.issues) {
+        // Validation failed, remove node
+        setNodes(nodes);
+        const errorMessages = result.issues.map(
+          (issue) => `${issue.code}: ${issue.message}`
+        );
+        setValidationErrors(errorMessages);
+      } else {
+        // Success, update DSL
+        const newDSL = {
+          ...dsl,
+          nodes: [
+            ...dsl.nodes,
+            {
+              id: nodeId,
+              type: typeId,
+              params: {},
+              position,
+            },
+          ],
+        };
+        setDSL(newDSL);
+        setValidationErrors([]);
+      }
+    } catch (error) {
+      console.error('Failed to create node:', error);
+      // On error, keep the node (fail open)
+      const newDSL = {
+        ...dsl,
+        nodes: [
+          ...dsl.nodes,
+          {
+            id: nodeId,
+            type: typeId,
+            params: {},
+            position,
+          },
+        ],
+      };
+      setDSL(newDSL);
+    }
+  }, [nodes, dsl, setNodes, setDSL, setValidationErrors]);
   
   // Group by category
   const grouped = nodeTypes.reduce((acc, nodeType) => {

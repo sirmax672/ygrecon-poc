@@ -37,12 +37,42 @@ You can build graphs from typed blocks (sources, pools/stocks, drains, processor
 
 ## Quickstart
 
-### 1) Install
+### 1) Install dependencies
 ```bash
 pnpm i
 ```
-### 2) Run the web app
+
+### 2) Setup backend (Python virtual environment)
+
+**Windows:**
 ```bash
+# Create virtual environment
+pnpm setup:backend
+
+# Activate and install dependencies
+cd apps/backend
+.venv\Scripts\activate
+pip install --upgrade pip setuptools wheel
+pip install -e .
+```
+
+**Linux/Mac:**
+```bash
+# Create virtual environment
+pnpm setup:backend
+
+# Activate and install dependencies
+cd apps/backend
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install -e .
+```
+
+**Note:** The virtual environment (`.venv/`) is created locally in `apps/backend/` and is git-ignored. This ensures dependencies are isolated from your system Python.
+
+### 3) Run the application
+```bash
+# Runs both frontend and backend
 pnpm dev
 ```
 

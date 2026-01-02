@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter web dev",
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:backend\" --names web,backend --prefix-colors blue,green",
+    "dev:web": "pnpm --filter web dev",
+    "dev:backend": "cd apps/backend && python -m uvicorn src.main:app --reload --port 8000",
+    "setup:backend": "cd apps/backend && python -m venv .venv && echo Virtual environment created. Now activate it and run: pip install -e .",
     "test": "pnpm -r test",
     "typecheck": "pnpm --filter @ygrecon/dsl build && pnpm --filter @ygrecon/core build && pnpm --filter @ygrecon/sim build && pnpm --filter @ygrecon/node-types-core build && pnpm --filter @ygrecon/viz build && pnpm -r typecheck",
     "typecheck:all": "pnpm -r typecheck",
@@ -12,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
     "typescript": "^5.3.3"
   }
 }

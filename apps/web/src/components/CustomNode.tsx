@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps, type Edge } from '@xyflow/react';
 import { useEditorStore } from '../store/editorStore';
 import { nodeTypeRegistry } from '@ygrecon/core';
-import { validateConnections, type ValidationIssue } from '@ygrecon/core';
+import { getWebSocketClient } from '../services/websocket';
 import { xyFlowToDSL } from '../utils/dslConverter';
 
 /**
@@ -190,38 +190,47 @@ export function CustomNode({ id, data, selected }: NodeProps) {
       },
     };
     
-    // Validate connection before creating it
-    const tempEdges = [...edges, tempEdge];
-    const tempDSL = xyFlowToDSL(nodes, tempEdges, dsl);
-    const issues = validateConnections(tempDSL);
+    // Create edge via WebSocket (backend validates and stores)
+    const wsClient = getWebSocketClient();
+    const sourceHandleNormalized = sourceHandle?.replace(/-target$/, '');
+    const targetHandleNormalized = targetHandle?.replace(/-target$/, '');
     
-    // Filter only connection-related issues for this specific edge
-    const connectionIssues = issues.filter(
-      (issue: ValidationIssue) =>
-        issue.edgeId === edgeId &&
-        (issue.code === 'DUPLICATE_CONNECTION' ||
-          issue.code === 'REVERSE_CONNECTION_ON_SAME_HANDLES' ||
-          issue.code?.startsWith('INVALID_'))
-    );
-    
-    if (connectionIssues.length > 0) {
-      // Show validation errors and prevent edge creation
-      const errorMessages = connectionIssues.map(
-        (issue: ValidationIssue) => `${issue.code}: ${issue.message}`
-      );
-      setValidationErrors(errorMessages);
-      return;
-    }
-    
-    // Clear validation errors if connection is valid
-    setValidationErrors([]);
-    
-    // Connection is valid, create the edge
-    setEdges(tempEdges);
-    
-    // Update DSL
-    const newDSL = xyFlowToDSL(nodes, tempEdges, dsl);
-    setDSL(newDSL);
+    wsClient.createEdge(
+      edgeId,
+      sourceId,
+      targetId,
+      sourceHandleNormalized,
+      targetHandleNormalized,
+      {}
+    ).then((result) => {
+      if (!result.valid && result.issues && result.issues.length > 0) {
+        // Show validation errors and prevent edge creation
+        const errorMessages = result.issues.map(
+          (issue) => `${issue.code}: ${issue.message}`
+        );
+        setValidationErrors(errorMessages);
+      } else {
+        // Clear validation errors if connection is valid
+        setValidationErrors([]);
+        
+        // Connection is valid, create the edge locally
+        const tempEdges = [...edges, tempEdge];
+        setEdges(tempEdges);
+        
+        // Update DSL
+        const newDSL = xyFlowToDSL(nodes, tempEdges, dsl);
+        setDSL(newDSL);
+      }
+    }).catch((error) => {
+      console.error('Failed to create edge:', error);
+      // On error, allow connection (fail open for now)
+      const tempEdges = [...edges, tempEdge];
+      setEdges(tempEdges);
+      if (dsl) {
+        const newDSL = xyFlowToDSL(nodes, tempEdges, dsl);
+        setDSL(newDSL);
+      }
+    });
   };
   
   return (

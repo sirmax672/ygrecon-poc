@@ -101,28 +101,74 @@ Rules:
 
 ---
 
-## Iteration B — Simulation MVP (Deterministic Engine + Counters + Tokens)
+## Iteration B0 — Backend Setup (Python/FastAPI + Validation)
 
-**Goal:** run/step/pause simulation with deterministic results; show counters and moving tokens.
+**Goal:** set up backend infrastructure and move validation to server-side for real-time feedback.
 
 ### Deliverables
-- [ ] `packages/sim`: discrete-event engine (event queue)
-- [ ] Runtime state:
-  - [ ] node counters (e.g., pool balance)
-  - [ ] active tokens (for animation)
-  - [ ] event log entries (for debugging)
-- [ ] Implement semantics in `packages/node-types-core`:
-  - [ ] `core.Source` generates tokens
-  - [ ] `core.Pool` stores tokens
-  - [ ] `core.Drain` consumes tokens
-  - [ ] `core.Gate` conditional pass-through
-- [ ] `apps/web`: Simulation toolbar (Run/Pause/Step/Reset + speed)
-- [ ] Token visualization: tokens move along edges; counters render on nodes
-- [ ] Golden test: run example graph for N steps and snapshot counters
+- [ ] `apps/backend`: Python FastAPI application structure
+  - [ ] FastAPI app with WebSocket support
+  - [ ] Project structure (api/, engine/, validation/, node_types/)
+  - [ ] Development setup: `pnpm dev` runs both frontend and backend
+- [ ] Port validation to backend:
+  - [ ] DSL validation (Pydantic models matching TypeScript Zod schemas)
+  - [ ] Connection validation (port `connectionValidator.ts` logic)
+  - [ ] WebSocket endpoint for real-time validation
+- [ ] Frontend integration:
+  - [ ] WebSocket client for validation requests
+  - [ ] Vite proxy configuration for backend API
+  - [ ] Update UI to call backend for validation (node creation, edge creation)
+- [ ] Type synchronization:
+  - [ ] JSON Schema as source of truth (or manual Pydantic models)
+  - [ ] Documentation on keeping types in sync
 
 ### DoD
-- Same seed + same graph => identical results
-- Engine remains UI-agnostic (no React imports)
+- `pnpm dev` starts both frontend (Vite) and backend (uvicorn) concurrently
+- Node/edge creation triggers backend validation via WebSocket
+- Validation errors displayed in UI in real-time
+- Backend validation logic matches TypeScript implementation
+
+---
+
+## Iteration B — Simulation MVP (Backend Engine + Step/Turn Model)
+
+**Goal:** implement simulation engine on backend using step/turn model; frontend visualizes state updates.
+
+### Deliverables
+- [ ] Backend simulation engine (`apps/backend/src/engine/simulator.py`):
+  - [ ] Turn/step execution model (see `docs/simulation-process.md`)
+  - [ ] Node handler interface (`handle()` method)
+  - [ ] Resource model and flow tracking
+  - [ ] Deterministic RNG (seeded)
+- [ ] Node type handlers in `apps/backend/src/node_types/core/`:
+  - [ ] `core.Source`: emits resources at turn start
+  - [ ] `core.Pool`: stores resources
+  - [ ] `core.Drain`: consumes resources
+  - [ ] `core.Gate`: conditional pass-through
+  - [ ] `core.Converter`: transforms resources
+  - [ ] `core.Trader`: exchanges resources
+  - [ ] `core.RandomSplit`: weighted routing
+- [ ] WebSocket API for simulation:
+  - [ ] `start_simulation`: initialize with graph + settings
+  - [ ] `step_simulation`: execute one step
+  - [ ] `run_turn`: execute complete turn
+  - [ ] `pause_simulation` / `reset_simulation`
+  - [ ] Stream simulation state updates to frontend
+- [ ] Frontend simulation UI:
+  - [ ] Simulation toolbar (Run/Pause/Step/Reset)
+  - [ ] WebSocket client for simulation control
+  - [ ] State visualization:
+    - [ ] Node counters (`stored_resources`, `consumed_resources`)
+    - [ ] Token animation along edges
+    - [ ] Turn/step counter display
+- [ ] Golden test: run example graph for N turns and snapshot node states
+
+### DoD
+- Same seed + same graph => identical results (deterministic)
+- Each node's `handle()` method executes on backend
+- Frontend receives state updates via WebSocket and visualizes only
+- Turn completes when step processes zero resource transfers
+- See `docs/simulation-process.md` for detailed requirements
 
 ---
 

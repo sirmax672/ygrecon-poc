@@ -18,7 +18,7 @@ import {
   type OnConnectStart,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useEditorStore } from './store/editorStore';
 import { CustomNode } from './components/CustomNode';
 import { NodePalette } from './components/NodePalette';
@@ -27,7 +27,7 @@ import { ImportExport } from './components/ImportExport';
 import { PolylineEdge } from './components/PolylineEdge';
 import { ConnectionLine } from './components/ConnectionLine';
 import { xyFlowToDSL } from './utils/dslConverter';
-import { validateConnections, type ValidationIssue } from '@ygrecon/core';
+import { getWebSocketClient } from './services/websocket';
 import './App.css';
 
 const nodeTypes = {
@@ -58,18 +58,58 @@ function Canvas() {
   // Track where connection started to determine direction
   const [connectionStartNode, setConnectionStartNode] = useState<string | null>(null);
   
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const wsClient = getWebSocketClient();
+    wsClient.connect().catch((error) => {
+      console.error('Failed to connect to WebSocket:', error);
+      // Fallback: continue without WebSocket (validation will fail gracefully)
+    });
+
+    return () => {
+      wsClient.disconnect();
+    };
+  }, []);
+  
+  // Debounce timer for position updates
+  const positionUpdateTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       const newNodes = applyNodeChanges(changes, nodes);
       setNodes(newNodes);
       
-      // Handle selection
+      // Handle selection and position updates
+      const wsClient = getWebSocketClient();
       for (const change of changes) {
         if (change.type === 'select') {
           if (change.selected) {
             setSelectedNodeId(change.id);
           } else if (selectedNodeId === change.id) {
             setSelectedNodeId(null);
+          }
+        } else if (change.type === 'position' && change.position && dsl) {
+          // Debounce position updates to avoid too many server requests
+          const node = newNodes.find((n) => n.id === change.id);
+          if (node) {
+            // Clear existing timer for this node
+            const existingTimer = positionUpdateTimers.current.get(change.id);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+            }
+            
+            // Set new timer to update position after 300ms of no changes
+            const timer = setTimeout(() => {
+              wsClient.updateNode(change.id, undefined, {
+                x: node.position.x,
+                y: node.position.y,
+              }).catch((error) => {
+                console.error('Failed to update node position on server:', error);
+              });
+              positionUpdateTimers.current.delete(change.id);
+            }, 300);
+            
+            positionUpdateTimers.current.set(change.id, timer);
           }
         }
       }
@@ -89,6 +129,7 @@ function Canvas() {
       setEdges(newEdges);
       
       // Handle selection
+      const wsClient = getWebSocketClient();
       for (const change of changes) {
         if (change.type === 'select') {
           if (change.selected) {
@@ -152,28 +193,90 @@ function Canvas() {
         
         const tempEdges = edges.map((e) => (e.id === oldEdge.id ? tempEdge : e));
         const tempDSL = xyFlowToDSL(nodes, tempEdges, dsl);
-        const issues = validateConnections(tempDSL);
         
-        // Filter only connection-related issues for this specific edge
-        const connectionIssues = issues.filter(
-          (issue: ValidationIssue) =>
-            issue.edgeId === oldEdge.id &&
-            (issue.code === 'DUPLICATE_CONNECTION' ||
-              issue.code === 'REVERSE_CONNECTION_ON_SAME_HANDLES' ||
-              issue.code?.startsWith('INVALID_'))
-        );
+        // Update edge via WebSocket (delete old, create new)
+        const wsClient = getWebSocketClient();
+        const sourceHandle = normalizedConnection.sourceHandle?.replace(/-target$/, '');
+        const targetHandle = normalizedConnection.targetHandle?.replace(/-target$/, '');
+        const newSource = normalizedConnection.source || oldEdge.source;
+        const newTarget = normalizedConnection.target || oldEdge.target;
         
-        if (connectionIssues.length > 0) {
-          // Show validation errors and prevent reconnection
-          const errorMessages = connectionIssues.map(
-            (issue: ValidationIssue) => `${issue.code}: ${issue.message}`
+        // Delete old edge and create new one
+        wsClient.deleteEdge(oldEdge.id).then(() => {
+          return wsClient.createEdge(
+            oldEdge.id,
+            newSource,
+            newTarget,
+            sourceHandle,
+            targetHandle,
+            (oldData.params || {}) as Record<string, unknown>
           );
-          setValidationErrors(errorMessages);
-          return;
-        }
+        }).then((result) => {
+          if (!result.valid && result.issues && result.issues.length > 0) {
+            // Show validation errors and prevent reconnection
+            const errorMessages = result.issues.map(
+              (issue) => `${issue.code}: ${issue.message}`
+            );
+            setValidationErrors(errorMessages);
+            // Restore old edge
+            setEdges(edges);
+          } else {
+            // Clear validation errors if connection is valid
+            setValidationErrors([]);
+            
+            // Proceed with reconnection
+            const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
+            
+            // Preserve points and type for polyline edges
+            const finalEdges = updatedEdges.map((edge) => {
+              if (edge.id === oldEdge.id) {
+                return {
+                  ...edge,
+                  type: 'polyline',
+                  data: {
+                    ...oldData,
+                    ...edge.data,
+                    points: oldPoints,
+                  },
+                };
+              }
+              return edge;
+            });
+            
+            setEdges(finalEdges);
+            
+            // Update DSL
+            if (dsl) {
+              const newDSL = xyFlowToDSL(nodes, finalEdges, dsl);
+              setDSL(newDSL);
+            }
+          }
+        }).catch((error) => {
+          console.error('Failed to reconnect edge:', error);
+          // On error, allow reconnection (fail open for now)
+          const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
+          const finalEdges = updatedEdges.map((edge) => {
+            if (edge.id === oldEdge.id) {
+              return {
+                ...edge,
+                type: 'polyline',
+                data: {
+                  ...oldData,
+                  ...edge.data,
+                  points: oldPoints,
+                },
+              };
+            }
+            return edge;
+          });
+          setEdges(finalEdges);
+          if (dsl) {
+            const newDSL = xyFlowToDSL(nodes, finalEdges, dsl);
+            setDSL(newDSL);
+          }
+        });
         
-        // Clear validation errors if connection is valid
-        setValidationErrors([]);
+        return; // Wait for validation result
       }
 
       // reconnectEdge handles the reconnection and uses the actual handle IDs from ReactFlow
@@ -271,47 +374,54 @@ function Canvas() {
         },
       };
       
-      // Validate connection before creating it
-      if (dsl) {
-        const tempEdges = [...edges, tempEdge];
-        const tempDSL = xyFlowToDSL(nodes, tempEdges, dsl);
-        const issues = validateConnections(tempDSL);
-        
-        // Filter only connection-related issues for this specific edge
-        const connectionIssues = issues.filter(
-          (issue: ValidationIssue) =>
-            issue.edgeId === tempEdge.id &&
-            (issue.code === 'DUPLICATE_CONNECTION' ||
-              issue.code === 'REVERSE_CONNECTION_ON_SAME_HANDLES' ||
-              issue.code?.startsWith('INVALID_'))
-        );
-        
-        if (connectionIssues.length > 0) {
+      // Create edge via WebSocket (backend validates and stores)
+      const wsClient = getWebSocketClient();
+      const sourceHandle = finalSourceHandle?.replace(/-target$/, '');
+      const targetHandle = finalTargetHandle?.replace(/-target$/, '');
+      
+      wsClient.createEdge(
+        tempEdge.id,
+        finalSource,
+        finalTarget,
+        sourceHandle,
+        targetHandle,
+        {}
+      ).then((result) => {
+        if (!result.valid && result.issues && result.issues.length > 0) {
           // Show validation errors and prevent edge creation
-          const errorMessages = connectionIssues.map(
-            (issue: ValidationIssue) => `${issue.code}: ${issue.message}`
+          const errorMessages = result.issues.map(
+            (issue) => `${issue.code}: ${issue.message}`
           );
           setValidationErrors(errorMessages);
           setConnectionStartNode(null);
-          return;
+        } else {
+          // Clear validation errors if connection is valid
+          setValidationErrors([]);
+          
+          // Connection is valid, create the edge locally
+          const newEdges = [...edges, tempEdge];
+          setEdges(newEdges);
+          
+          // Clear connection start tracking
+          setConnectionStartNode(null);
+          
+          // Update DSL
+          if (dsl) {
+            const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
+            setDSL(newDSL);
+          }
         }
-        
-        // Clear validation errors if connection is valid
-        setValidationErrors([]);
-      }
-      
-      // Connection is valid, create the edge
-      const newEdges = [...edges, tempEdge];
-      setEdges(newEdges);
-      
-      // Clear connection start tracking
-      setConnectionStartNode(null);
-      
-      // Update DSL (normalization happens in xyFlowToDSL)
-      if (dsl) {
-        const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
-        setDSL(newDSL);
-      }
+      }).catch((error) => {
+        console.error('Failed to create edge:', error);
+        // On error, allow connection (fail open for now)
+        const newEdges = [...edges, tempEdge];
+        setEdges(newEdges);
+        setConnectionStartNode(null);
+        if (dsl) {
+          const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
+          setDSL(newDSL);
+        }
+      });
     },
     [nodes, edges, dsl, setEdges, setDSL, setValidationErrors, connectionStartNode]
   );
@@ -366,31 +476,83 @@ function Canvas() {
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.metaKey) {
         if (selectedNodeId) {
-          const newNodes = nodes.filter((n) => n.id !== selectedNodeId);
-          setNodes(newNodes);
-          setSelectedNodeId(null);
-          
-          // Remove connected edges
-          const newEdges = edges.filter(
-            (e) => e.source !== selectedNodeId && e.target !== selectedNodeId
-          );
-          setEdges(newEdges);
-          
-          // Update DSL
-          if (dsl) {
-            const newDSL = xyFlowToDSL(newNodes, newEdges, dsl);
-            setDSL(newDSL);
-          }
+          // Delete node via WebSocket
+          const wsClient = getWebSocketClient();
+          wsClient.deleteNode(selectedNodeId).then(() => {
+            const newNodes = nodes.filter((n) => n.id !== selectedNodeId);
+            setNodes(newNodes);
+            setSelectedNodeId(null);
+            
+            // Remove connected edges (backend will handle this, but update UI)
+            const edgesToDelete = edges.filter(
+              (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId
+            );
+            const newEdges = edges.filter(
+              (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
+            );
+            
+            // Delete edges from backend
+            Promise.all(edgesToDelete.map((edge) => wsClient.deleteEdge(edge.id)))
+              .then(() => {
+                setEdges(newEdges);
+                
+                // Update DSL
+                if (dsl) {
+                  const newDSL = xyFlowToDSL(newNodes, newEdges, dsl);
+                  setDSL(newDSL);
+                }
+              })
+              .catch((error) => {
+                console.error('Failed to delete edges:', error);
+                // Update UI anyway (fail open)
+                setEdges(newEdges);
+                if (dsl) {
+                  const newDSL = xyFlowToDSL(newNodes, newEdges, dsl);
+                  setDSL(newDSL);
+                }
+              });
+          }).catch((error) => {
+            console.error('Failed to delete node:', error);
+            // Update UI anyway (fail open)
+            const newNodes = nodes.filter((n) => n.id !== selectedNodeId);
+            setNodes(newNodes);
+            setSelectedNodeId(null);
+            
+            const newEdges = edges.filter(
+              (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
+            );
+            setEdges(newEdges);
+            
+            if (dsl) {
+              const newDSL = xyFlowToDSL(newNodes, newEdges, dsl);
+              setDSL(newDSL);
+            }
+          });
         } else if (selectedEdgeId) {
-          const newEdges = edges.filter((e) => e.id !== selectedEdgeId);
-          setEdges(newEdges);
-          setSelectedEdgeId(null);
-          
-          // Update DSL
-          if (dsl) {
-            const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
-            setDSL(newDSL);
-          }
+          // Delete edge via WebSocket
+          const wsClient = getWebSocketClient();
+          wsClient.deleteEdge(selectedEdgeId).then(() => {
+            const newEdges = edges.filter((e) => e.id !== selectedEdgeId);
+            setEdges(newEdges);
+            setSelectedEdgeId(null);
+            
+            // Update DSL
+            if (dsl) {
+              const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
+              setDSL(newDSL);
+            }
+          }).catch((error) => {
+            console.error('Failed to delete edge:', error);
+            // Update UI anyway (fail open)
+            const newEdges = edges.filter((e) => e.id !== selectedEdgeId);
+            setEdges(newEdges);
+            setSelectedEdgeId(null);
+            
+            if (dsl) {
+              const newDSL = xyFlowToDSL(nodes, newEdges, dsl);
+              setDSL(newDSL);
+            }
+          });
         }
       }
     };

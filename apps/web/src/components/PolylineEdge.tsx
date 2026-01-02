@@ -6,6 +6,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { ClickableBaseEdge } from './ClickableBaseEdge';
+import { getWebSocketClient } from '../services/websocket';
 import './PolylineEdge.css';
 
 interface Point {
@@ -135,11 +136,39 @@ export const PolylineEdge: React.FC<EdgeProps> = ({
       if (edgeIndex === -1) return edges;
 
       const currentData = edges[edgeIndex].data || {};
+      const newData = updater(currentData as Record<string, unknown>);
       edges[edgeIndex] = {
         ...edges[edgeIndex],
         type: 'polyline',
-        data: updater(currentData as Record<string, unknown>),
+        data: newData,
       };
+      
+      // Sync edge params (including points) to server (only if WebSocket is connected)
+      try {
+        const wsClient = getWebSocketClient();
+        if (wsClient && wsClient.getSessionId()) {
+          // Normalize handles - remove -target suffix for storage
+          const normalizeHandle = (handle: string | null | undefined): string | undefined => {
+            if (!handle) return undefined;
+            return handle.replace(/-target$/, '');
+          };
+          
+          const params: Record<string, unknown> = {
+            ...edges[edgeIndex].data?.params,
+            points: newData.points,
+            sourceHandle: normalizeHandle(edges[edgeIndex].sourceHandle),
+            targetHandle: normalizeHandle(edges[edgeIndex].targetHandle),
+          };
+          
+          wsClient.updateEdge(id, params).catch((error) => {
+            console.error('Failed to update edge on server:', error);
+          });
+        }
+      } catch (error) {
+        // WebSocket not available, continue without syncing
+        console.warn('WebSocket not available for edge update:', error);
+      }
+      
       return edges;
     });
   };

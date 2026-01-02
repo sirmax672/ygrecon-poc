@@ -8,3 +8,14 @@ build
 coverage
 .vercel
 .turbo
+
+# Python virtual environments
+apps/backend/.venv/
+apps/backend/venv/
+apps/backend/env/
+apps/backend/ENV/
+apps/backend/__pycache__/
+apps/backend/**/__pycache__/
+apps/backend/*.pyc
+apps/backend/.pytest_cache/
+apps/backend/.mypy_cache/

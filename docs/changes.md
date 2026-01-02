@@ -90,3 +90,62 @@ Template:
   - No code changes required - this is documentation only
   - Future UI changes must update the "UI Structure & Requirements" section in docs/architecture.md
   - UI structure changes should also be logged in this changes.md file
+
+## 2025-01-XX
+- Change: Added backend architecture (Python/FastAPI) and moved simulation execution to backend. Changed simulation model from discrete-event to step/turn model.
+- Reason: 
+  - Need real-time validation on backend for security and consistency
+  - Simulation execution on backend allows scaling to complex graphs
+  - Step/turn model provides clearer semantics: turn = complete resource flow cycle, step = one iteration of node processing
+- Impact:
+  - docs/adr/005-backend-architecture.md: New ADR documenting backend architecture decision
+  - docs/simulation-process.md: New document defining step/turn/handle requirements
+  - docs/roadmap.md: 
+    - Added Iteration B0 (Backend Setup + Validation)
+    - Updated Iteration B (Simulation MVP) to use backend and step/turn model
+  - docs/architecture.md: Added Backend Architecture section and updated Simulation Engine section
+  - Repository structure: Added `apps/backend/` (to be implemented)
+- Migration/Notes:
+  - **Breaking change**: Simulation engine will be implemented in Python backend, not TypeScript
+  - TypeScript `packages/sim` will remain as interface definitions for reference
+  - Node types need Python implementations with `handle()` method (see `docs/simulation-process.md`)
+  - Frontend becomes visualization-only; all simulation logic runs on backend
+  - WebSocket protocol for communication (see ADR 005)
+  - Development: `pnpm dev` will run both frontend and backend concurrently
+  - Type synchronization: Use JSON Schema or manual sync between TypeScript and Python types
+  - Simulation model change:
+    - **Turn**: Complete cycle from Source nodes until no resources transferred
+    - **Step**: One iteration processing all active nodes
+    - Each node implements `handle(input_resources, outgoing_edges, node_state, rng) -> HandleResult`
+    - Node state includes `stored_resources` and `consumed_resources` (visualization-only)
+
+## 2025-01-XX
+- Change: Updated WebSocket protocol to session-based model with incremental updates.
+- Reason: 
+  - Reduce network traffic (no full graph on each action)
+  - Enable server-side state management
+  - Prepare for multi-user collaboration
+  - Better separation: frontend sends actions, backend maintains state
+- Impact:
+  - docs/adr/005-backend-architecture.md: Updated Communication Protocol section with session model
+  - docs/websocket-protocol.md: New protocol specification document
+  - docs/architecture.md: Updated API Protocol section
+  - apps/backend/src/api/websocket.py: Need to implement session management and incremental actions
+  - apps/web/src/services/websocket.ts: Need to send incremental actions instead of full graph
+- Migration/Notes:
+  - **Breaking change**: Protocol changed from "send full graph" to "send incremental actions"
+  - Old protocol: Frontend sent full graph on `validate_connection`
+  - New protocol: 
+    - Frontend sends `create_node`/`create_edge`/`update_node`/`delete_node`/`delete_edge` actions
+    - Backend maintains graph state in memory per session
+    - Backend validates each action against current graph state
+    - Session is created on WebSocket connect, destroyed on disconnect
+    - Graph state is lost on disconnect (future: add persistence)
+  - Frontend should send `get_graph` on reconnect to sync state
+  - Validation now happens during `create_edge` action, not separate `validate_connection` call
+  - `validate_connection` is still available for real-time feedback during edge dragging (does not modify graph)
+  - Implementation:
+    - `apps/backend/src/api/session.py`: Session management with in-memory graph storage
+    - `apps/backend/src/api/websocket.py`: Updated to handle incremental actions
+    - `apps/web/src/services/websocket.ts`: Updated to send incremental actions
+    - `apps/web/src/App.tsx`, `apps/web/src/components/CustomNode.tsx`, `apps/web/src/components/NodePalette.tsx`: Updated to use new protocol
