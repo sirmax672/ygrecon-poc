@@ -73,3 +73,20 @@ Template:
   - Edge handles (`sourceHandle`, `targetHandle`) are stored in `edge.params` for visualization
   - All visualization data is preserved through export/import cycles
   - This is editor metadata - simulation engine ignores positions and handles
+
+## 2025-01-XX
+- Change: Added UI Structure & Requirements section to docs/architecture.md and updated .cursorrules to require reading/updating UI documentation.
+- Reason: Need clear documentation of UI layout hierarchy and component responsibilities for maintainability and consistency.
+- Impact:
+  - docs/architecture.md: Added "UI Structure & Requirements" section describing layout hierarchy, component responsibilities, and current implementation
+  - .cursorrules: Updated rule 11 to explicitly mention UI requirements documentation
+  - Current UI structure documented:
+    - Header: Undo/Redo buttons + Import/Export component
+    - Main Content Area (flex row):
+      - Left: NodePalette (node type selection)
+      - Center: Canvas (ReactFlow graph editor)
+      - Right: RightPanel (tabbed interface with Inspector and DSL Viewer tabs)
+- Migration/Notes:
+  - No code changes required - this is documentation only
+  - Future UI changes must update the "UI Structure & Requirements" section in docs/architecture.md
+  - UI structure changes should also be logged in this changes.md file

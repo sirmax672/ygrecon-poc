@@ -167,6 +167,65 @@ Each node type plugin exports:
 
 ---
 
+## UI Structure & Requirements
+
+### Layout Hierarchy
+
+The UI (`apps/web`) follows a fixed layout structure that must be maintained:
+
+```
+App (full viewport)
+├── Header (top toolbar)
+│   ├── Undo/Redo buttons
+│   └── Import/Export component
+├── Main Content Area (flex row, fills remaining height)
+│   ├── Left Panel: Node Palette
+│   │   └── List of available node types for drag-and-drop creation
+│   ├── Center Panel: Canvas (ReactFlow)
+│   │   └── Graph editor with nodes and edges
+│   └── Right Panel: RightPanel (tabbed interface)
+│       ├── Tab: Inspector
+│       │   └── Parameter editor for selected node/edge
+│       └── Tab: DSL Viewer
+│           └── JSON view of current DSL state
+```
+
+### Component Responsibilities
+
+- **Header**: Global actions (undo/redo, import/export)
+- **NodePalette**: Node type selection and creation
+- **Canvas**: Graph visualization and editing (ReactFlow-based)
+- **RightPanel**: Tabbed interface for:
+  - **Inspector**: Edit parameters of selected nodes/edges
+  - **DSL Viewer**: Read-only JSON view of current DSL
+
+### UI Requirements
+
+1. **Separation**: UI must not contain simulation logic. All simulation logic lives in `packages/sim`.
+2. **State Management**: UI state (nodes, edges, DSL) is managed via Zustand store (`apps/web/src/store/editorStore.ts`).
+3. **DSL Sync**: UI must keep DSL in sync with visual graph state. Changes to nodes/edges update DSL via `xyFlowToDSL` converter.
+4. **Validation**: UI validates connections before creating/updating edges using `validateConnections` from `@ygrecon/core`.
+5. **Extensibility**: New UI panels should follow the existing structure. If adding new tabs to RightPanel, update this documentation.
+
+### Current Implementation
+
+- **Header**: `apps/web/src/App.tsx` (lines ~450-480)
+- **NodePalette**: `apps/web/src/components/NodePalette.tsx`
+- **Canvas**: `apps/web/src/App.tsx` (Canvas component, lines ~41-441)
+- **RightPanel**: `apps/web/src/components/RightPanel.tsx`
+  - **Inspector**: `apps/web/src/components/Inspector.tsx`
+  - **DSL Viewer**: `apps/web/src/components/DSLViewer.tsx`
+- **ImportExport**: `apps/web/src/components/ImportExport.tsx`
+
+### UI Change Requirements
+
+When modifying UI structure:
+1. Update this section to reflect the new structure
+2. Update `docs/changes.md` with the change
+3. Ensure layout remains responsive and accessible
+
+---
+
 ## Documentation & change tracking (mandatory)
 
 - `docs/changes.md` is an append-only log of requirement changes / scope clarifications.

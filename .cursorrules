@@ -38,9 +38,13 @@ HARD RULES (must follow):
 DOCUMENTATION IS SOURCE OF TRUTH:
 11) Before implementing any task, you MUST read the relevant docs:
     - docs/roadmap.md (iteration scope + DoD)
-    - docs/architecture.md (layering, package boundaries, contracts)
+    - docs/architecture.md (layering, package boundaries, contracts, UI structure)
     - docs/adr/* (decisions)
    If any doc is missing, create it minimally and proceed.
+   
+   **UI Requirements**: When working on UI changes, read and update the "UI Structure & Requirements" section in docs/architecture.md.
+   This section describes the layout hierarchy, component responsibilities, and current implementation.
+   Any UI structure changes must be documented there.
 
 12) If implementation would deviate from docs (scope, architecture, APIs, folder structure):
     - STOP and propose an explicit change to docs first.

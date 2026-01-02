@@ -4,7 +4,14 @@ import { useCallback } from 'react';
 import type { Node } from '@xyflow/react';
 
 export function NodePalette() {
-  const { nodes, setNodes, dsl, setDSL } = useEditorStore();
+  const { 
+    nodes, 
+    setNodes, 
+    dsl, 
+    setDSL,
+    edgeCreationMode,
+    setEdgeCreationMode,
+  } = useEditorStore();
   const nodeTypes = nodeTypeRegistry.getAll();
   
   const handleAddNode = useCallback((typeId: string) => {
@@ -78,6 +85,52 @@ export function NodePalette() {
       }}
     >
       <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Node Palette</h3>
+      
+      {/* Edge creation button */}
+      <button
+        onClick={() => setEdgeCreationMode(!edgeCreationMode)}
+        style={{
+          width: '100%',
+          padding: '10px',
+          marginBottom: '16px',
+          border: '1px solid #ddd',
+          borderRadius: '4px',
+          backgroundColor: edgeCreationMode ? '#007bff' : '#fff',
+          color: edgeCreationMode ? '#fff' : '#000',
+          cursor: 'pointer',
+          fontSize: '14px',
+          fontWeight: 'bold',
+        }}
+        onMouseEnter={(e) => {
+          if (!edgeCreationMode) {
+            e.currentTarget.style.backgroundColor = '#e9ecef';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!edgeCreationMode) {
+            e.currentTarget.style.backgroundColor = '#fff';
+          }
+        }}
+      >
+        {edgeCreationMode ? '✓ Create Edge (Click 2 nodes)' : '+ Create Edge'}
+      </button>
+      
+      {edgeCreationMode && (
+        <div
+          style={{
+            padding: '8px',
+            marginBottom: '16px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#856404',
+          }}
+        >
+          Click on source node, then target node to create edge
+        </div>
+      )}
+      
       {Object.entries(grouped).map(([category, types]) => (
         <div key={category} style={{ marginBottom: '24px' }}>
           <div

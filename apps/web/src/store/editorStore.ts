@@ -46,6 +46,12 @@ interface EditorStore {
   selectedEdgeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
+  
+  // Edge creation mode
+  edgeCreationMode: boolean;
+  edgeCreationSourceNodeId: string | null;
+  setEdgeCreationMode: (enabled: boolean) => void;
+  setEdgeCreationSourceNodeId: (nodeId: string | null) => void;
 }
 
 const MAX_HISTORY = 50;
@@ -70,6 +76,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   historyIndex: -1,
   selectedNodeId: null,
   selectedEdgeId: null,
+  edgeCreationMode: false,
+  edgeCreationSourceNodeId: null,
   
   setNodes: (nodes, saveHistory = true) => {
     set({ nodes });
@@ -164,6 +172,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   setSelectedEdgeId: (id) => {
     set({ selectedEdgeId: id, selectedNodeId: null });
+  },
+  
+  setEdgeCreationMode: (enabled) => {
+    set({ 
+      edgeCreationMode: enabled,
+      edgeCreationSourceNodeId: null, // Reset source when toggling
+    });
+  },
+  
+  setEdgeCreationSourceNodeId: (nodeId) => {
+    set({ edgeCreationSourceNodeId: nodeId });
   },
 }));
 

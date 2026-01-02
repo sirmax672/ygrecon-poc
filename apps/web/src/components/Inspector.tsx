@@ -194,11 +194,9 @@ export function Inspector() {
     return (
       <div
         style={{
-          width: '250px',
-          backgroundColor: '#f5f5f5',
-          borderLeft: '1px solid #ddd',
+          flex: 1,
+          overflow: 'auto',
           padding: '16px',
-          height: '100vh',
         }}
       >
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
@@ -216,12 +214,9 @@ export function Inspector() {
     return (
       <div
         style={{
-          width: '250px',
-          backgroundColor: '#f5f5f5',
-          borderLeft: '1px solid #ddd',
+          flex: 1,
+          overflow: 'auto',
           padding: '16px',
-          height: '100vh',
-          overflowY: 'auto',
         }}
       >
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
@@ -254,11 +249,9 @@ export function Inspector() {
     return (
       <div
         style={{
-          width: '250px',
-          backgroundColor: '#f5f5f5',
-          borderLeft: '1px solid #ddd',
+          flex: 1,
+          overflow: 'auto',
           padding: '16px',
-          height: '100vh',
         }}
       >
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
@@ -329,6 +322,21 @@ export function Inspector() {
     );
   }
   
-  return null;
+  return (
+    <div
+      style={{
+        flex: 1,
+        overflow: 'auto',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#666',
+        fontSize: '14px',
+      }}
+    >
+      Select a node or edge to inspect
+    </div>
+  );
 }
 

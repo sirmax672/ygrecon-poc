@@ -22,7 +22,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useEditorStore } from './store/editorStore';
 import { CustomNode } from './components/CustomNode';
 import { NodePalette } from './components/NodePalette';
-import { Inspector } from './components/Inspector';
+import { RightPanel } from './components/RightPanel';
 import { ImportExport } from './components/ImportExport';
 import { PolylineEdge } from './components/PolylineEdge';
 import { ConnectionLine } from './components/ConnectionLine';
@@ -410,6 +410,16 @@ function Canvas() {
     setSelectedEdgeId,
   ]);
   
+  const { edgeCreationMode, setEdgeCreationMode, setEdgeCreationSourceNodeId } = useEditorStore();
+  
+  // Disable edge creation mode when clicking on pane
+  const onPaneClick = useCallback(() => {
+    if (edgeCreationMode) {
+      setEdgeCreationMode(false);
+      setEdgeCreationSourceNodeId(null);
+    }
+  }, [edgeCreationMode, setEdgeCreationMode, setEdgeCreationSourceNodeId]);
+  
   return (
     <ReactFlow
       nodes={nodes}
@@ -419,6 +429,7 @@ function Canvas() {
       onConnect={onConnect}
       onConnectStart={onConnectStart}
       onReconnect={onReconnect}
+      onPaneClick={onPaneClick}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       connectionLineComponent={ConnectionLine}
@@ -494,8 +505,8 @@ function App() {
             </ReactFlowProvider>
           </div>
           
-          {/* Right: Inspector */}
-          <Inspector />
+          {/* Right: Inspector / DSL Viewer */}
+          <RightPanel />
         </div>
       </div>
     </div>
