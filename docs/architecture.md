@@ -175,16 +175,14 @@ apps/backend/
 
 Frontend → Backend:
 - `create_node`, `update_node`, `delete_node`: Node management
-- `create_edge`, `update_edge`, `delete_edge`: Edge management
-- `validate_connection`: Real-time validation (before creating edge)
+- `create_edge`, `update_edge`, `delete_edge`: Edge management (validation happens during `create_edge`)
 - `get_graph`: Request current graph state
 - `start_simulation`, `step_simulation`, `run_turn`, `pause_simulation`, `reset_simulation`: Simulation control
 
 Backend → Frontend:
 - `session_created`: Session initialized (sent on connect)
 - `node_created`, `node_updated`, `node_deleted`: Node action confirmations
-- `edge_created`, `edge_updated`, `edge_deleted`: Edge action confirmations
-- `validation_result`: Validation response
+- `edge_created`, `edge_updated`, `edge_deleted`: Edge action confirmations (includes validation results)
 - `graph_state`: Current graph state
 - `simulation_state`: Updated state (nodes, tokens, turn/step counters)
 - `error`: Error message

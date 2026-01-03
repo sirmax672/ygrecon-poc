@@ -82,11 +82,6 @@ async def handle_websocket(websocket: WebSocket):
                 print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
                 await websocket.send_json(response)
 
-            elif message_type == "validate_connection":
-                response = await handle_validate_connection(session, payload)
-                print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
-                await websocket.send_json(response)
-
             elif message_type == "get_graph":
                 response = await handle_get_graph(session, payload)
                 print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
@@ -269,7 +264,7 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
 
 async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Handle create_edge message."""
-    from ..graph import NodeInstance, EdgeInstance
+    from ..graph import create_node_instance, EdgeInstance
     from ..graph.edge_instance import normalize_handle_id
 
     edge_id = payload.get("edge_id")
@@ -359,8 +354,8 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
 
     # Create instances for validation (only for involved nodes and edge)
     edge_instance = EdgeInstance(temp_edge, session.graph.edges)
-    from_node_instance = NodeInstance(from_node, session.graph)
-    to_node_instance = NodeInstance(to_node, session.graph)
+    from_node_instance = create_node_instance(from_node, session.graph)
+    to_node_instance = create_node_instance(to_node, session.graph)
 
     # Normalize handles
     source_handle_norm = normalize_handle_id(source_handle)
@@ -483,104 +478,6 @@ async def handle_delete_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
         "type": "edge_deleted",
         "payload": {
             "edge_id": edge_id
-        }
-    }
-
-
-async def handle_validate_connection(session, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Handle validate_connection message (does not modify graph).
-
-    Used for real-time feedback during edge dragging.
-    """
-    from ..graph import NodeInstance, EdgeInstance
-    from ..graph.edge_instance import normalize_handle_id
-
-    from_node_id = payload.get("from_node_id")
-    to_node_id = payload.get("to_node_id")
-    source_handle = payload.get("source_handle")
-    target_handle = payload.get("target_handle")
-    edge_id = payload.get("edge_id", "temp-validation")
-
-    if not from_node_id or not to_node_id:
-        return {
-            "type": "validation_result",
-            "payload": {
-                "valid": False,
-                "issues": [{
-                    "code": "MISSING_REQUIRED_FIELDS",
-                    "message": "from_node_id and to_node_id are required"
-                }]
-            }
-        }
-
-    # Check if nodes exist
-    from_node = next((n for n in session.graph.nodes if n.id == from_node_id), None)
-    to_node = next((n for n in session.graph.nodes if n.id == to_node_id), None)
-
-    if not from_node or not to_node:
-        return {
-            "type": "validation_result",
-            "payload": {
-                "valid": False,
-                "issues": [{
-                    "code": "NODE_NOT_FOUND",
-                    "message": f"Source or target node not found",
-                    "node_id": from_node_id if not from_node else to_node_id
-                }]
-            }
-        }
-
-    # Create temporary edge for validation
-    temp_edge = EdgeDef(
-        id=edge_id,
-        from_=from_node_id,
-        to=to_node_id,
-        params={
-            "sourceHandle": source_handle,
-            "targetHandle": target_handle,
-        }
-    )
-
-    # Create instances for validation (only for involved nodes and edge)
-    edge_instance = EdgeInstance(temp_edge, session.graph.edges)
-    from_node_instance = NodeInstance(from_node, session.graph)
-    to_node_instance = NodeInstance(to_node, session.graph)
-
-    # Normalize handles
-    source_handle_norm = normalize_handle_id(source_handle)
-    target_handle_norm = normalize_handle_id(target_handle)
-
-    # Collect all validation issues
-    issues: list[ValidationIssue] = []
-
-    # 1. Validate edge structure (duplicates, reverse connections)
-    issues.extend(edge_instance.validate_structure())
-
-    # 2. Validate from node's outgoing connection
-    if not issues:  # Only check node types if structure is valid
-        issues.extend(
-            from_node_instance.validate_outgoing_connection(
-                to_node_id, source_handle_norm, target_handle_norm, edge_id
-            )
-        )
-
-    # 3. Validate to node's incoming connection
-    if not issues:  # Only check if previous validations passed
-        issues.extend(
-            to_node_instance.validate_incoming_connection(
-                from_node_id, source_handle_norm, target_handle_norm, edge_id
-            )
-        )
-
-    # Convert issues to dict format
-    issues_dict = [issue.model_dump() for issue in issues]
-
-    return {
-        "type": "validation_result",
-        "payload": {
-            "valid": len(issues) == 0,
-            "issues": issues_dict
         }
     }
 

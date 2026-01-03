@@ -201,10 +201,10 @@ function Canvas() {
         const newSource = normalizedConnection.source || oldEdge.source;
         const newTarget = normalizedConnection.target || oldEdge.target;
         
-        // Delete old edge and create new one
+        // Update edge on server (keep same ID, just update connection)
         wsClient.deleteEdge(oldEdge.id).then(() => {
           return wsClient.createEdge(
-            oldEdge.id,
+            oldEdge.id, // Keep the same edge ID
             newSource,
             newTarget,
             sourceHandle,
@@ -224,14 +224,18 @@ function Canvas() {
             // Clear validation errors if connection is valid
             setValidationErrors([]);
             
-            // Proceed with reconnection
+            // Proceed with reconnection - reconnectEdge preserves the edge ID
             const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
             
-            // Preserve points and type for polyline edges
+            // Ensure the edge keeps its original ID and preserve all data
             const finalEdges = updatedEdges.map((edge) => {
-              if (edge.id === oldEdge.id) {
+              // Find the reconnected edge (it should have the same ID, but check both old and new)
+              if (edge.id === oldEdge.id || 
+                  (edge.source === normalizedConnection.source && 
+                   edge.target === normalizedConnection.target)) {
                 return {
                   ...edge,
+                  id: oldEdge.id, // Force keep the original ID
                   type: 'polyline',
                   data: {
                     ...oldData,
@@ -256,9 +260,13 @@ function Canvas() {
           // On error, allow reconnection (fail open for now)
           const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
           const finalEdges = updatedEdges.map((edge) => {
-            if (edge.id === oldEdge.id) {
+            // Ensure the edge keeps its original ID
+            if (edge.id === oldEdge.id || 
+                (edge.source === normalizedConnection.source && 
+                 edge.target === normalizedConnection.target)) {
               return {
                 ...edge,
+                id: oldEdge.id, // Force keep the original ID
                 type: 'polyline',
                 data: {
                   ...oldData,
@@ -282,11 +290,15 @@ function Canvas() {
       // reconnectEdge handles the reconnection and uses the actual handle IDs from ReactFlow
       const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
       
-      // Preserve points and type for polyline edges
+      // Ensure the edge keeps its original ID and preserve all data
       const finalEdges = updatedEdges.map((edge) => {
-        if (edge.id === oldEdge.id) {
+        // Find the reconnected edge and ensure it keeps the original ID
+        if (edge.id === oldEdge.id || 
+            (edge.source === normalizedConnection.source && 
+             edge.target === normalizedConnection.target)) {
           return {
             ...edge,
+            id: oldEdge.id, // Force keep the original ID
             type: 'polyline', // Always keep polyline type
             data: {
               ...oldData, // Preserve all old data

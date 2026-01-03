@@ -74,7 +74,6 @@ Frontend → Backend:
 - `create_edge`: Add new edge to graph (with validation)
 - `update_edge`: Update edge parameters
 - `delete_edge`: Remove edge from graph
-- `validate_connection`: Validate if edge can be created (before creating)
 - `get_graph`: Request current graph state
 - `start_simulation`: Start simulation with current graph state
 - `step_simulation`: Execute one step
@@ -86,10 +85,9 @@ Backend → Frontend:
 - `node_created`: Node creation confirmed
 - `node_updated`: Node update confirmed
 - `node_deleted`: Node deletion confirmed
-- `edge_created`: Edge creation confirmed
+- `edge_created`: Edge creation confirmed (includes validation result)
 - `edge_updated`: Edge update confirmed
 - `edge_deleted`: Edge deletion confirmed
-- `validation_result`: Result of validation request
 - `graph_state`: Current graph state (response to `get_graph`)
 - `simulation_state`: Updated simulation state (nodeState, tokens, etc.)
 - `error`: Error message

@@ -237,54 +237,6 @@ Delete an edge from the graph.
 }
 ```
 
-### `validate_connection`
-
-Validate if an edge can be created (for real-time feedback during edge dragging). Does NOT modify the graph.
-
-**Request:**
-```json
-{
-  "type": "validate_connection",
-  "payload": {
-    "from_node_id": "source_1",
-    "to_node_id": "pool_1",
-    "source_handle": "bottom-1",
-    "target_handle": "top-1",
-    "edge_id": "temp-validation",
-    "mode": "preliminary"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "type": "validation_result",
-  "payload": {
-    "valid": true,
-    "issues": []
-  }
-}
-```
-
-Or on validation error:
-```json
-{
-  "type": "validation_result",
-  "payload": {
-    "valid": false,
-    "issues": [
-      {
-        "code": "INVALID_CONNECTION",
-        "message": "Source nodes cannot have incoming edges",
-        "node_id": "source_1",
-        "edge_id": "temp-validation"
-      }
-    ]
-  }
-}
-```
-
 ### `get_graph`
 
 Request current graph state (useful for reconnection/sync).

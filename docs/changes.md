@@ -142,8 +142,8 @@ Template:
     - Session is created on WebSocket connect, destroyed on disconnect
     - Graph state is lost on disconnect (future: add persistence)
   - Frontend should send `get_graph` on reconnect to sync state
-  - Validation now happens during `create_edge` action, not separate `validate_connection` call
-  - `validate_connection` is still available for real-time feedback during edge dragging (does not modify graph)
+  - Validation happens during `create_edge` action (validation is built into edge creation)
+  - Removed `validate_connection` message type (not used, validation happens in `create_edge`)
   - Implementation:
     - `apps/backend/src/api/session.py`: Session management with in-memory graph storage
     - `apps/backend/src/api/websocket.py`: Updated to handle incremental actions

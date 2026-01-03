@@ -10,7 +10,6 @@ type MessageType =
   | 'create_edge'
   | 'update_edge'
   | 'delete_edge'
-  | 'validate_connection'
   | 'get_graph'
   | 'session_created'
   | 'node_created'
@@ -19,7 +18,6 @@ type MessageType =
   | 'edge_created'
   | 'edge_updated'
   | 'edge_deleted'
-  | 'validation_result'
   | 'graph_state'
   | 'error';
 
@@ -81,18 +79,6 @@ interface DeleteEdgeRequest {
   };
 }
 
-interface ValidateConnectionRequest {
-  type: 'validate_connection';
-  payload: {
-    from_node_id: string;
-    to_node_id: string;
-    source_handle?: string;
-    target_handle?: string;
-    edge_id?: string;
-    mode?: 'preliminary' | 'final';
-  };
-}
-
 interface GetGraphRequest {
   type: 'get_graph';
   payload: {};
@@ -125,19 +111,6 @@ interface EdgeCreatedResponse {
     edge_id: string;
     valid: boolean;
     issues?: Array<{
-      code: string;
-      message: string;
-      node_id?: string;
-      edge_id?: string;
-    }>;
-  };
-}
-
-interface ValidationResultResponse {
-  type: 'validation_result';
-  payload: {
-    valid: boolean;
-    issues: Array<{
       code: string;
       message: string;
       node_id?: string;
@@ -453,38 +426,6 @@ export class WebSocketClient {
 
     if (response.type === 'error') {
       throw new Error(response.payload.message);
-    }
-  }
-
-  async validateConnection(
-    fromNodeId: string,
-    toNodeId: string,
-    sourceHandle: string | undefined,
-    targetHandle: string | undefined,
-    edgeId?: string,
-    mode: 'preliminary' | 'final' = 'final'
-  ): Promise<ValidationResultResponse['payload']> {
-    const response = await this.sendMessage(
-      {
-        type: 'validate_connection',
-        payload: {
-          from_node_id: fromNodeId,
-          to_node_id: toNodeId,
-          source_handle: sourceHandle,
-          target_handle: targetHandle,
-          edge_id: edgeId,
-          mode,
-        },
-      },
-      'validation_result' // Expected response type
-    );
-
-    if (response.type === 'validation_result') {
-      return response.payload;
-    } else if (response.type === 'error') {
-      throw new Error(response.payload.message);
-    } else {
-      throw new Error(`Unexpected response type: ${response.type}`);
     }
   }
 
