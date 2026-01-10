@@ -13,7 +13,7 @@ class SourceNode(NodeInstance):
         from_node_id: str,
         source_handle: Optional[str],
         target_handle: Optional[str],
-        edge_id: str,
+        edge_id: Optional[str],
     ) -> list[ValidationIssue]:
         """Source nodes cannot have incoming edges."""
         issues: list[ValidationIssue] = []

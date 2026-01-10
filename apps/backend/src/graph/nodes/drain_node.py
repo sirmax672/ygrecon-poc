@@ -13,7 +13,7 @@ class DrainNode(NodeInstance):
         to_node_id: str,
         source_handle: Optional[str],
         target_handle: Optional[str],
-        edge_id: str,
+        edge_id: Optional[str],
     ) -> list[ValidationIssue]:
         """Drain nodes cannot have outgoing edges."""
         issues: list[ValidationIssue] = []

@@ -1,6 +1,7 @@
 import { useEditorStore } from '../store/editorStore';
 import { nodeTypeRegistry } from '@ygrecon/core';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import { getWebSocketClient } from '../services/websocket';
 
 function getSchemaFieldType(schema: unknown): 'string' | 'number' | 'boolean' | 'enum' | 'unknown' {
   // This is a simplified type checker for Zod schemas
@@ -27,11 +28,13 @@ function ParamField({
   schema,
   value,
   onChange,
+  onBlur,
 }: {
   name: string;
   schema: unknown;
   value: unknown;
   onChange: (value: unknown) => void;
+  onBlur?: () => void;
 }) {
   const fieldType = getSchemaFieldType(schema);
   const enumValues = fieldType === 'enum' ? getEnumValues(schema) : [];
@@ -46,6 +49,12 @@ function ParamField({
     }
   };
   
+  const handleBlur = () => {
+    if (onBlur) {
+      onBlur();
+    }
+  };
+  
   if (fieldType === 'boolean') {
     return (
       <div style={{ marginBottom: '12px' }}>
@@ -55,6 +64,7 @@ function ParamField({
         <select
           value={String(value ?? '')}
           onChange={handleChange}
+          onBlur={handleBlur}
           style={{ width: '100%', padding: '4px' }}
         >
           <option value="">(not set)</option>
@@ -74,6 +84,7 @@ function ParamField({
         <select
           value={String(value ?? '')}
           onChange={handleChange}
+          onBlur={handleBlur}
           style={{ width: '100%', padding: '4px' }}
         >
           <option value="">(not set)</option>
@@ -96,6 +107,7 @@ function ParamField({
         type={fieldType === 'number' ? 'number' : 'text'}
         value={String(value ?? '')}
         onChange={handleChange}
+        onBlur={handleBlur}
         style={{ width: '100%', padding: '4px' }}
         placeholder={fieldType === 'number' ? '0' : ''}
       />
@@ -124,59 +136,136 @@ export function Inspector() {
   
   const [localParams, setLocalParams] = useState<Record<string, unknown>>({});
   
+  // Debounce timer for param updates
+  const paramUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Ref to store current params for onBlur handler
+  const currentParamsRef = useRef<Record<string, unknown>>({});
+  
   useEffect(() => {
     if (selectedNode) {
-      setLocalParams(selectedNode.data.params as Record<string, unknown> || {});
+      const params = (selectedNode.data.params as Record<string, unknown>) || {};
+      setLocalParams(params);
+      currentParamsRef.current = params;
     } else if (selectedEdge) {
-      setLocalParams(selectedEdge.data?.params as Record<string, unknown> || {});
+      const params = (selectedEdge.data?.params as Record<string, unknown>) || {};
+      setLocalParams(params);
+      currentParamsRef.current = params;
     } else {
       setLocalParams({});
+      currentParamsRef.current = {};
+    }
+    
+    // Clear any pending updates when selection changes
+    if (paramUpdateTimerRef.current) {
+      clearTimeout(paramUpdateTimerRef.current);
+      paramUpdateTimerRef.current = null;
     }
   }, [selectedNode, selectedEdge]);
   
+  // Function to send params to server immediately (called on blur)
+  const sendParamsToServer = useCallback(async () => {
+    // Use ref to get current params (always up-to-date)
+    const currentParams = currentParamsRef.current;
+    
+    if (!currentParams || Object.keys(currentParams).length === 0) {
+      return;
+    }
+    
+    // Also clear any pending debounced update since we're sending immediately
+    if (paramUpdateTimerRef.current) {
+      clearTimeout(paramUpdateTimerRef.current);
+      paramUpdateTimerRef.current = null;
+    }
+    
+    const wsClient = getWebSocketClient();
+    
+    try {
+      if (selectedNode && selectedNodeId) {
+        await wsClient.updateNode(selectedNodeId, currentParams);
+      } else if (selectedEdge && selectedEdgeId) {
+        await wsClient.updateEdge(selectedEdgeId, currentParams);
+      }
+    } catch (error) {
+      console.error('Failed to update params on server:', error);
+      // Optionally: show error notification to user or revert local changes
+    }
+  }, [selectedNode, selectedEdge, selectedNodeId, selectedEdgeId]);
+
   const handleParamChange = useCallback(
     (key: string, value: unknown) => {
-      const newParams = { ...localParams, [key]: value };
-      setLocalParams(newParams);
-      
-      if (selectedNode) {
-        const newNodes = nodes.map((n) =>
-          n.id === selectedNodeId
-            ? { ...n, data: { ...n.data, params: newParams } }
-            : n
-        );
-        setNodes(newNodes);
+      // Use functional update to get current localParams
+      setLocalParams((prevParams) => {
+        const newParams = { ...prevParams, [key]: value };
         
-        if (dsl) {
-          const newDSL = {
-            ...dsl,
-            nodes: dsl.nodes.map((n) =>
-              n.id === selectedNodeId ? { ...n, params: newParams } : n
-            ),
-          };
-          setDSL(newDSL);
-        }
-      } else if (selectedEdge) {
-        const newEdges = edges.map((e) =>
-          e.id === selectedEdgeId
-            ? { ...e, data: { ...e.data, params: newParams } }
-            : e
-        );
-        setEdges(newEdges);
+        // Update ref with current params for onBlur handler
+        currentParamsRef.current = newParams;
         
-        if (dsl) {
-          const newDSL = {
-            ...dsl,
-            edges: dsl.edges.map((e) =>
-              e.id === selectedEdgeId ? { ...e, params: newParams } : e
-            ),
-          };
-          setDSL(newDSL);
+        // Update local state immediately for responsive UI
+        if (selectedNode && selectedNodeId) {
+          const newNodes = nodes.map((n) =>
+            n.id === selectedNodeId
+              ? { ...n, data: { ...n.data, params: newParams } }
+              : n
+          );
+          setNodes(newNodes);
+          
+          // Update DSL
+          if (dsl) {
+            const newDSL = {
+              ...dsl,
+              nodes: dsl.nodes.map((n) =>
+                n.id === selectedNodeId ? { ...n, params: newParams } : n
+              ),
+            };
+            setDSL(newDSL);
+          }
+        } else if (selectedEdge && selectedEdgeId) {
+          const newEdges = edges.map((e) =>
+            e.id === selectedEdgeId
+              ? { ...e, data: { ...e.data, params: newParams } }
+              : e
+          );
+          setEdges(newEdges);
+          
+          // Update DSL
+          if (dsl) {
+            const newDSL = {
+              ...dsl,
+              edges: dsl.edges.map((e) =>
+                e.id === selectedEdgeId ? { ...e, params: newParams } : e
+              ),
+            };
+            setDSL(newDSL);
+          }
         }
-      }
+        
+        // Debounce server update to avoid too many requests while typing
+        // Clear existing timer
+        if (paramUpdateTimerRef.current) {
+          clearTimeout(paramUpdateTimerRef.current);
+        }
+        
+        // Set new timer to send update after 300ms of no changes
+        paramUpdateTimerRef.current = setTimeout(async () => {
+          const wsClient = getWebSocketClient();
+          
+          try {
+            if (selectedNode && selectedNodeId) {
+              await wsClient.updateNode(selectedNodeId, newParams);
+            } else if (selectedEdge && selectedEdgeId) {
+              await wsClient.updateEdge(selectedEdgeId, newParams);
+            }
+          } catch (error) {
+            console.error('Failed to update params on server:', error);
+          } finally {
+            paramUpdateTimerRef.current = null;
+          }
+        }, 300);
+        
+        return newParams;
+      });
     },
     [
-      localParams,
       selectedNode,
       selectedEdge,
       selectedNodeId,
@@ -234,6 +323,7 @@ export function Inspector() {
               schema={fieldSchema}
               value={localParams[key]}
               onChange={(value) => handleParamChange(key, value)}
+              onBlur={sendParamsToServer}
             />
           ))}
         </div>
@@ -281,6 +371,7 @@ export function Inspector() {
               onChange={(e) => {
                 handleParamChange('label', e.target.value);
               }}
+              onBlur={sendParamsToServer}
               placeholder="Edge label (empty to hide)"
               style={{ width: '100%', padding: '4px', fontSize: '12px' }}
             />
@@ -297,6 +388,7 @@ export function Inspector() {
               onChange={(e) => {
                 handleParamChange('formula', e.target.value);
               }}
+              onBlur={sendParamsToServer}
               placeholder="Formula expression (empty to hide)"
               style={{ width: '100%', padding: '4px', fontSize: '12px' }}
             />
@@ -315,6 +407,7 @@ export function Inspector() {
                 schema={{ _def: { typeName: 'ZodString' } }}
                 value={value}
                 onChange={(val) => handleParamChange(key, val)}
+                onBlur={sendParamsToServer}
               />
             ))}
         </div>

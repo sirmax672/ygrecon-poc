@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 from ..shared.dsl_schema import GraphDSL, GraphMeta, ResourceDef
+from ..graph.graph import Graph
 
 
 class Session:
@@ -13,22 +14,25 @@ class Session:
         self.session_id = session_id
         self.project_id = project_id  # Optional link to project in DB
         self.created_at = datetime.now()
-        # Initialize with empty graph
-        self.graph = GraphDSL(
-            dslVersion="0.2",
+        # Initialize with empty graph (instances in memory)
+        self.graph = Graph(
             meta=GraphMeta(name="", seed=12345),
             resources=[],
             nodes=[],
             edges=[],
         )
 
-    def get_graph(self) -> GraphDSL:
+    def get_graph(self) -> Graph:
         """Get current graph state."""
         return self.graph
 
-    def update_graph(self, graph: GraphDSL) -> None:
-        """Update graph state."""
-        self.graph = graph
+    def get_graph_dsl(self) -> GraphDSL:
+        """Get graph as DSL (for serialization/communication)."""
+        return self.graph.to_dsl()
+
+    def load_from_dsl(self, dsl: GraphDSL) -> None:
+        """Load graph from DSL (when loading from DB)."""
+        self.graph = Graph.from_dsl(dsl)
 
     def set_project_id(self, project_id: Optional[str]) -> None:
         """Link session to a project."""

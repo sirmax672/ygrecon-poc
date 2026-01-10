@@ -1,128 +1,68 @@
-"""Connection validation logic ported from TypeScript."""
+"""Connection validation logic for batch validation."""
 
-from typing import Optional
-from ..shared.dsl_schema import GraphDSL, ValidationIssue, EdgeDef
-from ..node_types.core import get_node_type
-
-
-def normalize_handle_id(handle_id: Optional[str]) -> Optional[str]:
-    """Normalize handle ID - remove -target suffix if present."""
-    if not handle_id:
-        return None
-    # Remove -target suffix if present (e.g., "top-1-target" -> "top-1")
-    return handle_id.replace("-target", "")
+from ..shared.dsl_schema import ValidationIssue
+from ..graph.edge_instance import normalize_handle_id
+from ..graph.graph import Graph
 
 
-def get_edge_handles(edge: EdgeDef) -> dict[str, Optional[str]]:
-    """Extract handle IDs from edge params."""
-    source_handle = normalize_handle_id(edge.params.get("sourceHandle"))
-    target_handle = normalize_handle_id(edge.params.get("targetHandle"))
-    return {"sourceHandle": source_handle, "targetHandle": target_handle}
-
-
-def validate_connections(dsl: GraphDSL) -> list[ValidationIssue]:
+def validate_connections(graph: Graph) -> list[ValidationIssue]:
     """
     Validate all edge connections in a graph.
 
     Performs base-level structural checks and delegates node-type-specific
-    validation to node type classes.
+    validation to node instance classes.
 
     Args:
-        dsl: The graph DSL to validate
+        graph: The Graph object to validate
 
     Returns:
         List of validation issues (empty if all valid)
     """
     issues: list[ValidationIssue] = []
-    node_map = {node.id: node for node in dsl.nodes}
-    edges_by_direction: dict[str, list[EdgeDef]] = {}  # "from->to" -> edges[]
-    edges_by_handles: dict[str, EdgeDef] = {}  # "from[handleX]->to[handleY]" -> edge
+    node_map = {node.node_def.id: node for node in graph.nodes}
 
-    # Build edge maps and validate base rules
-    for edge in dsl.edges:
+    # Validate each edge
+    for edge_instance in graph.edges:
+        edge_def = edge_instance.edge_def
+
         # Skip if nodes don't exist (this should be checked elsewhere)
-        if edge.from_ not in node_map or edge.to not in node_map:
+        if edge_def.from_ not in node_map or edge_def.to not in node_map:
             continue
 
-        direction_key = f"{edge.from_}->{edge.to}"
-        handles = get_edge_handles(edge)
-        source_handle = handles["sourceHandle"]
-        target_handle = handles["targetHandle"]
+        # 1. Validate edge structure (duplicates, reverse connections)
+        structure_issues = edge_instance.validate_structure(graph)
+        issues.extend(structure_issues)
 
-        # Rule 1: No duplicate connections in the same direction
-        if direction_key not in edges_by_direction:
-            edges_by_direction[direction_key] = []
-        existing_in_direction = edges_by_direction[direction_key]
+        # 2. Validate node-type-specific connections
+        if not structure_issues:  # Only check node types if structure is valid
+            from_node_instance = node_map[edge_def.from_]
+            to_node_instance = node_map[edge_def.to]
 
-        # Check if this edge is a duplicate (same from->to, regardless of handles)
-        is_duplicate = any(
-            e.id != edge.id and e.from_ == edge.from_ and e.to == edge.to
-            for e in existing_in_direction
-        )
+            source_handle = normalize_handle_id(edge_def.params.get("sourceHandle"))
+            target_handle = normalize_handle_id(edge_def.params.get("targetHandle"))
 
-        if is_duplicate:
-            issues.append(
-                ValidationIssue(
-                    code="DUPLICATE_CONNECTION",
-                    message=f"Duplicate connection from {edge.from_} to {edge.to}. Only one edge allowed per direction.",
-                    edgeId=edge.id,
-                    nodeId=edge.from_,
+            # Validate from node's perspective (outgoing connection)
+            node_issues = from_node_instance.validate_connection(
+                graph,
+                edge_def.from_,
+                edge_def.to,
+                source_handle,
+                target_handle,
+                edge_def.id,
+            )
+            issues.extend(node_issues)
+
+            # Validate to node's perspective (incoming connection)
+            if not node_issues:  # Only check if previous validation passed
+                node_issues = to_node_instance.validate_connection(
+                    graph,
+                    edge_def.from_,
+                    edge_def.to,
+                    source_handle,
+                    target_handle,
+                    edge_def.id,
                 )
-            )
-        else:
-            existing_in_direction.append(edge)
-
-        # Rule 2: No reverse connection using the same handles
-        if source_handle and target_handle:
-            handle_key = f"{edge.from_}[{source_handle}]->{edge.to}[{target_handle}]"
-            reverse_handle_key = f"{edge.to}[{target_handle}]->{edge.from_}[{source_handle}]"
-
-            if reverse_handle_key in edges_by_handles:
-                reverse_edge = edges_by_handles[reverse_handle_key]
-                issues.append(
-                    ValidationIssue(
-                        code="REVERSE_CONNECTION_ON_SAME_HANDLES",
-                        message=f"Cannot create reverse connection {edge.from_}[{source_handle}]->{edge.to}[{target_handle}] because reverse connection {reverse_edge.id} already exists on the same handles.",
-                        edgeId=edge.id,
-                        nodeId=edge.from_,
-                    )
-                )
-            else:
-                edges_by_handles[handle_key] = edge
-
-    # Delegate to node-type-specific validation
-    for edge in dsl.edges:
-        if edge.from_ not in node_map or edge.to not in node_map:
-            continue
-
-        from_node = node_map[edge.from_]
-        to_node = node_map[edge.to]
-        handles = get_edge_handles(edge)
-        source_handle = handles["sourceHandle"]
-        target_handle = handles["targetHandle"]
-
-        # Validate from node's perspective
-        from_node_type = get_node_type(from_node.type)
-        if from_node_type:
-            node_issues = from_node_type.validate_connection(
-                dsl, edge.from_, edge.to, source_handle, target_handle
-            )
-            issues.extend(
-                ValidationIssue(**{**issue.model_dump(), "edgeId": edge.id})
-                for issue in node_issues
-            )
-
-        # Validate to node's perspective (for incoming connections)
-        to_node_type = get_node_type(to_node.type)
-        if to_node_type:
-            # For incoming validation, we swap from/to to represent the connection from the target's perspective
-            node_issues = to_node_type.validate_connection(
-                dsl, edge.to, edge.from_, target_handle, source_handle
-            )
-            issues.extend(
-                ValidationIssue(**{**issue.model_dump(), "edgeId": edge.id})
-                for issue in node_issues
-            )
+                issues.extend(node_issues)
 
     return issues
 

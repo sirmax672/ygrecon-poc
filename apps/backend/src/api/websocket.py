@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from ..shared.dsl_schema import GraphDSL, ValidationIssue, NodeDef, EdgeDef, NodePosition
 from ..validation.dsl_validator import validate_dsl_structure
+from ..graph.nodes import create_node_instance
+from ..graph.edge_instance import EdgeInstance, normalize_handle_id
 from .session import create_session, get_session, delete_session
 
 
@@ -22,7 +24,7 @@ async def handle_websocket(websocket: WebSocket):
         "type": "session_created",
         "payload": {
             "session_id": session.session_id,
-            "graph": session.graph.model_dump(by_alias=True)
+            "graph": session.get_graph_dsl().model_dump(by_alias=True)
         }
     }
     print(f"INFO: Sending message: {json.dumps(session_msg)[:200]}...")
@@ -154,7 +156,7 @@ async def handle_create_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Check if node already exists
-    if any(n.id == node_id for n in session.graph.nodes):
+    if any(n.node_def.id == node_id for n in session.graph.nodes):
         return {
             "type": "node_created",
             "payload": {
@@ -168,16 +170,17 @@ async def handle_create_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Create node
-    node = NodeDef(
+    # Create node definition
+    node_def = NodeDef(
         id=node_id,
         type=node_type,
         params=params,
         position=NodePosition(**position) if position else None
     )
 
-    # Add to graph
-    session.graph.nodes.append(node)
+    # Create node instance and add to graph
+    node_instance = create_node_instance(node_def)
+    session.graph.nodes.append(node_instance)
 
     return {
         "type": "node_created",
@@ -203,9 +206,9 @@ async def handle_update_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Find node
-    node = next((n for n in session.graph.nodes if n.id == node_id), None)
-    if not node:
+    # Find node instance
+    node_instance = next((n for n in session.graph.nodes if n.node_def.id == node_id), None)
+    if not node_instance:
         return {
             "type": "error",
             "payload": {
@@ -215,11 +218,11 @@ async def handle_update_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Update node
+    # Update node definition
     if params is not None:
-        node.params.update(params)
+        node_instance.node_def.params.update(params)
     if position is not None:
-        node.position = NodePosition(**position)
+        node_instance.node_def.position = NodePosition(**position)
 
     return {
         "type": "node_updated",
@@ -243,9 +246,9 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Find and remove node
-    node = next((n for n in session.graph.nodes if n.id == node_id), None)
-    if not node:
+    # Find and remove node instance
+    node_instance = next((n for n in session.graph.nodes if n.node_def.id == node_id), None)
+    if not node_instance:
         return {
             "type": "error",
             "payload": {
@@ -255,13 +258,13 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Remove node
-    session.graph.nodes = [n for n in session.graph.nodes if n.id != node_id]
+    # Remove node instance
+    session.graph.nodes = [n for n in session.graph.nodes if n.node_def.id != node_id]
 
-    # Remove all edges connected to this node
+    # Remove all edge instances connected to this node
     session.graph.edges = [
         e for e in session.graph.edges
-        if e.from_ != node_id and e.to != node_id
+        if e.edge_def.from_ != node_id and e.edge_def.to != node_id
     ]
 
     return {
@@ -274,9 +277,6 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
 
 async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Handle create_edge message."""
-    from ..graph import create_node_instance, EdgeInstance
-    from ..graph.edge_instance import normalize_handle_id
-
     edge_id = payload.get("edge_id")
     from_node_id = payload.get("from_node_id")
     to_node_id = payload.get("to_node_id")
@@ -298,11 +298,11 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Check if nodes exist
-    from_node = next((n for n in session.graph.nodes if n.id == from_node_id), None)
-    to_node = next((n for n in session.graph.nodes if n.id == to_node_id), None)
+    # Check if nodes exist (as instances)
+    from_node_instance = next((n for n in session.graph.nodes if n.node_def.id == from_node_id), None)
+    to_node_instance = next((n for n in session.graph.nodes if n.node_def.id == to_node_id), None)
 
-    if not from_node:
+    if not from_node_instance:
         return {
             "type": "edge_created",
             "payload": {
@@ -317,7 +317,7 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    if not to_node:
+    if not to_node_instance:
         return {
             "type": "edge_created",
             "payload": {
@@ -332,8 +332,8 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Check if edge already exists
-    if any(e.id == edge_id for e in session.graph.edges):
+    # Check if edge already exists (as instance)
+    if any(e.edge_def.id == edge_id for e in session.graph.edges):
         return {
             "type": "edge_created",
             "payload": {
@@ -354,18 +354,16 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
         **edge_params
     }
 
-    # Create edge instance for validation
-    temp_edge = EdgeDef(
+    # Create edge definition
+    edge_def = EdgeDef(
         id=edge_id,
         from_=from_node_id,
         to=to_node_id,
         params=params
     )
 
-    # Create instances for validation (only for involved nodes and edge)
-    edge_instance = EdgeInstance(temp_edge, session.graph.edges)
-    from_node_instance = create_node_instance(from_node, session.graph)
-    to_node_instance = create_node_instance(to_node, session.graph)
+    # Create edge instance for validation
+    edge_instance = EdgeInstance(edge_def)
 
     # Normalize handles
     source_handle_norm = normalize_handle_id(source_handle)
@@ -375,23 +373,31 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
     issues: list[ValidationIssue] = []
 
     # 1. Validate edge structure (duplicates, reverse connections)
-    issues.extend(edge_instance.validate_structure())
+    issues.extend(edge_instance.validate_structure(session.graph))
 
-    # 2. Validate from node's outgoing connection
+    # 2. Validate from node's connection (outgoing)
     if not issues:  # Only check node types if structure is valid
-        issues.extend(
-            from_node_instance.validate_outgoing_connection(
-                to_node_id, source_handle_norm, target_handle_norm, edge_id
-            )
+        node_issues = from_node_instance.validate_connection(
+            session.graph,
+            from_node_id,
+            to_node_id,
+            source_handle_norm,
+            target_handle_norm,
+            edge_id,
         )
+        issues.extend(node_issues)
 
-    # 3. Validate to node's incoming connection
+    # 3. Validate to node's connection (incoming)
     if not issues:  # Only check if previous validations passed
-        issues.extend(
-            to_node_instance.validate_incoming_connection(
-                from_node_id, source_handle_norm, target_handle_norm, edge_id
-            )
+        node_issues = to_node_instance.validate_connection(
+            session.graph,
+            from_node_id,
+            to_node_id,
+            source_handle_norm,
+            target_handle_norm,
+            edge_id,
         )
+        issues.extend(node_issues)
 
     if issues:
         # Validation failed, don't add edge
@@ -404,8 +410,8 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Validation passed, add edge to graph
-    session.graph.edges.append(temp_edge)
+    # Validation passed, add edge instance to graph
+    session.graph.edges.append(edge_instance)
 
     return {
         "type": "edge_created",
@@ -430,9 +436,9 @@ async def handle_update_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Find edge
-    edge = next((e for e in session.graph.edges if e.id == edge_id), None)
-    if not edge:
+    # Find edge instance
+    edge_instance = next((e for e in session.graph.edges if e.edge_def.id == edge_id), None)
+    if not edge_instance:
         return {
             "type": "error",
             "payload": {
@@ -442,10 +448,10 @@ async def handle_update_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Update edge params (merge, not replace, to preserve existing params)
+    # Update edge definition params (merge, not replace, to preserve existing params)
     if params is not None:
         # Merge params to preserve existing values
-        edge.params = {**edge.params, **params}
+        edge_instance.edge_def.params = {**edge_instance.edge_def.params, **params}
 
     return {
         "type": "edge_updated",
@@ -469,9 +475,9 @@ async def handle_delete_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Find and remove edge
-    edge = next((e for e in session.graph.edges if e.id == edge_id), None)
-    if not edge:
+    # Find and remove edge instance
+    edge_instance = next((e for e in session.graph.edges if e.edge_def.id == edge_id), None)
+    if not edge_instance:
         return {
             "type": "error",
             "payload": {
@@ -481,8 +487,8 @@ async def handle_delete_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Remove edge
-    session.graph.edges = [e for e in session.graph.edges if e.id != edge_id]
+    # Remove edge instance
+    session.graph.edges = [e for e in session.graph.edges if e.edge_def.id != edge_id]
 
     return {
         "type": "edge_deleted",
@@ -497,7 +503,7 @@ async def handle_get_graph(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "type": "graph_state",
         "payload": {
-            "graph": session.graph.model_dump(by_alias=True)
+            "graph": session.get_graph_dsl().model_dump(by_alias=True)
         }
     }
 
@@ -553,18 +559,16 @@ async def handle_load_project(session, payload: Dict[str, Any]) -> Dict[str, Any
                 }
             }
 
-        # Parse DSL JSON
-        graph = GraphDSL.model_validate_json(project.dsl_data)
-
-        # Load graph into session
-        session.update_graph(graph)
+        # Parse DSL JSON and load graph into session
+        dsl = GraphDSL.model_validate_json(project.dsl_data)
+        session.load_from_dsl(dsl)
         session.set_project_id(project_id)
 
         return {
             "type": "project_loaded",
             "payload": {
                 "project_id": project_id,
-                "graph": graph.model_dump(by_alias=True)
+                "graph": dsl.model_dump(by_alias=True)
             }
         }
     finally:
@@ -619,7 +623,7 @@ async def handle_save_project(session, payload: Dict[str, Any]) -> Dict[str, Any
             # Update project
             if name:
                 project.name = name
-            project.dsl_data = session.graph.model_dump_json()
+            project.dsl_data = session.get_graph_dsl().model_dump_json()
             project.updated_at = datetime.utcnow()
 
             db.commit()
@@ -650,7 +654,7 @@ async def handle_save_project(session, payload: Dict[str, Any]) -> Dict[str, Any
                 user_id=test_user.id,  # Use real user ID from DB
                 name=name,
                 description=payload.get("description"),
-                dsl_data=session.graph.model_dump_json(),
+                dsl_data=session.get_graph_dsl().model_dump_json(),
             )
 
             db.add(project)
