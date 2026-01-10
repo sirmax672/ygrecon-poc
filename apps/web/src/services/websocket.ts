@@ -11,6 +11,8 @@ type MessageType =
   | 'update_edge'
   | 'delete_edge'
   | 'get_graph'
+  | 'load_project'
+  | 'save_project'
   | 'session_created'
   | 'node_created'
   | 'node_updated'
@@ -19,6 +21,8 @@ type MessageType =
   | 'edge_updated'
   | 'edge_deleted'
   | 'graph_state'
+  | 'project_loaded'
+  | 'project_saved'
   | 'error';
 
 interface BaseMessage {
@@ -84,6 +88,24 @@ interface GetGraphRequest {
   payload: {};
 }
 
+interface LoadProjectRequest {
+  type: 'load_project';
+  payload: {
+    project_id: string;
+    user_id?: string;
+  };
+}
+
+interface SaveProjectRequest {
+  type: 'save_project';
+  payload: {
+    project_id?: string;
+    name?: string;
+    description?: string;
+    user_id?: string;
+  };
+}
+
 interface SessionCreatedResponse {
   type: 'session_created';
   payload: {
@@ -126,6 +148,21 @@ interface GraphStateResponse {
   };
 }
 
+interface ProjectLoadedResponse {
+  type: 'project_loaded';
+  payload: {
+    project_id: string;
+    graph: unknown; // GraphDSL
+  };
+}
+
+interface ProjectSavedResponse {
+  type: 'project_saved';
+  payload: {
+    project_id: string;
+  };
+}
+
 interface ErrorResponse {
   type: 'error';
   payload: {
@@ -143,15 +180,17 @@ type WebSocketRequest =
   | CreateEdgeRequest
   | UpdateEdgeRequest
   | DeleteEdgeRequest
-  | ValidateConnectionRequest
-  | GetGraphRequest;
+  | GetGraphRequest
+  | LoadProjectRequest
+  | SaveProjectRequest;
 
-type WebSocketResponse =
+export type WebSocketResponse =
   | SessionCreatedResponse
   | NodeCreatedResponse
   | EdgeCreatedResponse
-  | ValidationResultResponse
   | GraphStateResponse
+  | ProjectLoadedResponse
+  | ProjectSavedResponse
   | ErrorResponse;
 
 export class WebSocketClient {
@@ -167,7 +206,7 @@ export class WebSocketClient {
     // Use Vite proxy in development, direct connection in production
     if (url) {
       this.url = url;
-    } else if (import.meta.env.DEV) {
+    } else if (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV) {
       // In development, use Vite proxy
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host; // localhost:5173
@@ -449,6 +488,72 @@ export class WebSocketClient {
 
   getSessionId(): string | null {
     return this.sessionId;
+  }
+
+  // Public method to register message handlers
+  onMessage(type: string, handler: (response: WebSocketResponse) => void): () => void {
+    this.addMessageHandler(type, handler);
+    // Return unsubscribe function
+    return () => {
+      this.removeMessageHandler(type, handler);
+    };
+  }
+
+  async loadProject(projectId: string): Promise<ProjectLoadedResponse['payload']> {
+    const response = await this.sendMessage(
+      {
+        type: 'load_project',
+        payload: { project_id: projectId },  // user_id is handled on backend
+      },
+      'project_loaded'
+    );
+
+    if (response.type === 'project_loaded') {
+      return response.payload;
+    } else if (response.type === 'error') {
+      throw new Error(response.payload.message);
+    } else {
+      throw new Error(`Unexpected response type: ${response.type}`);
+    }
+  }
+
+  async saveProject(
+    options: {
+      projectId?: string;
+      name?: string;
+      description?: string;
+    }
+  ): Promise<ProjectSavedResponse['payload']> {
+    // Build payload, only include project_id if it's defined
+    const payload: Record<string, unknown> = {};
+    if (options.projectId !== undefined && options.projectId !== null) {
+      payload.project_id = options.projectId;
+    }
+    if (options.name !== undefined) {
+      payload.name = options.name;
+    }
+    if (options.description !== undefined) {
+      payload.description = options.description;
+    }
+    // user_id is handled on backend (same as REST API)
+
+    console.log('Sending save_project with payload:', payload);
+
+    const response = await this.sendMessage(
+      {
+        type: 'save_project',
+        payload,
+      },
+      'project_saved'
+    );
+
+    if (response.type === 'project_saved') {
+      return response.payload;
+    } else if (response.type === 'error') {
+      throw new Error(response.payload.message);
+    } else {
+      throw new Error(`Unexpected response type: ${response.type}`);
+    }
   }
 }
 

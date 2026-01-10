@@ -9,8 +9,9 @@ from ..shared.dsl_schema import GraphDSL, GraphMeta, ResourceDef
 class Session:
     """Represents a session with a graph state."""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, project_id: Optional[str] = None):
         self.session_id = session_id
+        self.project_id = project_id  # Optional link to project in DB
         self.created_at = datetime.now()
         # Initialize with empty graph
         self.graph = GraphDSL(
@@ -28,6 +29,10 @@ class Session:
     def update_graph(self, graph: GraphDSL) -> None:
         """Update graph state."""
         self.graph = graph
+
+    def set_project_id(self, project_id: Optional[str]) -> None:
+        """Link session to a project."""
+        self.project_id = project_id
 
 
 # Global session storage (in-memory)

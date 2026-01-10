@@ -198,6 +198,139 @@ See `docs/adr/005-backend-architecture.md` for architectural decisions.
 
 ---
 
+## Database & Persistence
+
+### Overview
+
+Projects are stored persistently in a database, allowing users to save, load, and manage multiple projects. The system uses SQLAlchemy ORM for database abstraction, enabling migration from SQLite (POC) to PostgreSQL (production) without code changes.
+
+### Database Models
+
+**User** (`apps/backend/src/db/models.py`):
+- `id`: UUID (primary key)
+- `email`: String (unique, required)
+- `username`: String (unique, required)
+- `created_at`: DateTime
+- `projects`: Relationship to Project (one-to-many)
+
+**Project** (`apps/backend/src/db/models.py`):
+- `id`: UUID (primary key)
+- `user_id`: UUID (foreign key to User, required)
+- `name`: String (required)
+- `description`: Text (optional)
+- `dsl_data`: Text (JSON string of GraphDSL, required)
+- `created_at`: DateTime
+- `updated_at`: DateTime (auto-updated on save)
+- `owner`: Relationship to User (many-to-one)
+
+### Database Module Structure
+
+```
+apps/backend/
+  src/
+    db/
+      __init__.py
+      database.py          # Database connection (SQLAlchemy engine, session factory)
+      models.py            # SQLAlchemy models (User, Project)
+      migrations/          # Alembic migrations
+        alembic.ini
+        env.py
+        versions/
+```
+
+### Database Connection
+
+**`apps/backend/src/db/database.py`**:
+- `DATABASE_URL`: Configurable via environment variable (default: SQLite)
+- `engine`: SQLAlchemy engine (database-agnostic)
+- `SessionLocal`: Session factory for FastAPI dependency injection
+- `init_db()`: Initialize database (create tables if not exist, before first migration)
+- `get_db()`: FastAPI dependency for database session
+
+**Connection String**:
+- **POC (SQLite)**: `sqlite:///./ygrecon.db`
+- **Production (PostgreSQL)**: `postgresql://user:pass@host/dbname` (via `DATABASE_URL` env var)
+
+### Database Initialization
+
+Database is initialized on backend startup:
+- `apps/backend/src/main.py` calls `init_db()` on FastAPI `startup` event
+- Tables are created automatically (before migrations)
+- Alembic migrations apply schema changes in production
+
+### Migrations
+
+**Alembic** is used for database schema versioning:
+- Migrations stored in `apps/backend/src/db/migrations/versions/`
+- `alembic upgrade head` applies all pending migrations
+- Schema changes require creating a new migration file
+- Migrations ensure consistent schema across environments
+
+**Migration Workflow**:
+1. Modify models in `apps/backend/src/db/models.py`
+2. Generate migration: `alembic revision --autogenerate -m "description"`
+3. Review migration file
+4. Apply migration: `alembic upgrade head`
+
+### Separation: Sessions vs Projects
+
+**Sessions** (in-memory, existing):
+- Temporary storage for WebSocket connections
+- One session = one WebSocket connection
+- Graph state stored in memory (`apps/backend/src/api/session.py`)
+- Destroyed on disconnect
+- Used for real-time editing and simulation
+
+**Projects** (persistent, new):
+- Permanent storage in database
+- Belong to users
+- Persist between sessions
+- Can be loaded into a session for editing
+
+**Relationship**:
+- Session can load a project from DB via `load_project` WebSocket command
+- Session can save its state to a project via `save_project` WebSocket command
+- Session maintains optional `project_id` to track which project it's working with
+
+### REST API for Projects
+
+**`apps/backend/src/api/projects.py`** provides CRUD endpoints:
+
+- `GET /api/projects/`: List all projects for current user
+- `GET /api/projects/{project_id}`: Get project by ID
+- `POST /api/projects/`: Create new project
+- `PUT /api/projects/{project_id}`: Update existing project
+- `DELETE /api/projects/{project_id}`: Delete project
+
+**Authentication** (POC stub):
+- Temporarily: `get_current_user()` returns test user
+- Future: JWT or session-based authentication
+
+### WebSocket Integration
+
+**New WebSocket commands** for project management:
+- `load_project`: Load project from DB into current session
+  - Payload: `{ project_id: string }`
+  - Response: `{ type: "project_loaded", payload: { project_id, graph } }`
+- `save_project`: Save current session state to project
+  - Payload: `{ project_id?: string, name?: string }` (if project_id missing, creates new)
+  - Response: `{ type: "project_saved", payload: { project_id } }`
+
+See `docs/websocket-protocol.md` for complete protocol specification.
+
+### Migration to PostgreSQL
+
+To migrate from SQLite to PostgreSQL:
+
+1. Install PostgreSQL driver: `pip install psycopg2-binary` (or `asyncpg`)
+2. Set environment variable: `DATABASE_URL=postgresql://user:pass@host/dbname`
+3. Run Alembic migrations: `alembic upgrade head`
+4. No code changes required (SQLAlchemy abstraction handles the switch)
+
+See `docs/adr/006-project-persistence-database.md` for architectural decisions.
+
+---
+
 ## Backend Architecture
 
 ### API Protocol

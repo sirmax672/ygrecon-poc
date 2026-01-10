@@ -8,6 +8,7 @@ build
 coverage
 .vercel
 .turbo
+*.db
 
 # Python virtual environments
 apps/backend/.venv/
@@ -19,3 +20,7 @@ apps/backend/**/__pycache__/
 apps/backend/*.pyc
 apps/backend/.pytest_cache/
 apps/backend/.mypy_cache/
+
+# Database
+apps/backend/ygrecon.db
+apps/backend/ygrecon.db-journal

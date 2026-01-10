@@ -24,10 +24,13 @@ import { CustomNode } from './components/CustomNode';
 import { NodePalette } from './components/NodePalette';
 import { RightPanel } from './components/RightPanel';
 import { ImportExport } from './components/ImportExport';
+import { ProjectManager } from './components/ProjectManager';
 import { PolylineEdge } from './components/PolylineEdge';
 import { ConnectionLine } from './components/ConnectionLine';
 import { xyFlowToDSL } from './utils/dslConverter';
-import { getWebSocketClient } from './services/websocket';
+import { dslToXYFlow } from './utils/dslConverter';
+import { getWebSocketClient, type WebSocketResponse } from './services/websocket';
+import type { GraphDSL } from '@ygrecon/dsl';
 import './App.css';
 
 const nodeTypes = {
@@ -38,7 +41,11 @@ const edgeTypes = {
   polyline: PolylineEdge,
 };
 
-function Canvas() {
+interface CanvasProps {
+  onProjectLoaded?: (projectId: string) => void;
+}
+
+function Canvas({ onProjectLoaded }: CanvasProps) {
   const {
     nodes,
     edges,
@@ -58,18 +65,57 @@ function Canvas() {
   // Track where connection started to determine direction
   const [connectionStartNode, setConnectionStartNode] = useState<string | null>(null);
   
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection and load default project
   useEffect(() => {
     const wsClient = getWebSocketClient();
+    
+    // Register handler for session_created to auto-load default project
+    const handleSessionCreated = async (message: WebSocketResponse) => {
+      if (message.type === 'session_created') {
+        try {
+          // Try to find and load project "default"
+          // First, try to get list of projects via REST API
+          const response = await fetch('/api/projects/');
+          if (response.ok) {
+            const projects = await response.json();
+            const defaultProject = projects.find((p: { name: string }) => p.name === 'default');
+            
+            if (defaultProject) {
+              // Load default project
+              const result = await wsClient.loadProject(defaultProject.id);
+              const graphDSL = result.graph as GraphDSL;
+              const { nodes: newNodes, edges: newEdges } = dslToXYFlow(graphDSL);
+              setDSL(graphDSL);
+              setNodes(newNodes);
+              setEdges(newEdges);
+              // Notify parent that project was loaded
+              if (onProjectLoaded) {
+                onProjectLoaded(defaultProject.id);
+              }
+            }
+            // If project doesn't exist, continue with empty graph
+            // Project will be created on first save
+          }
+        } catch (error) {
+          console.error('Failed to load default project:', error);
+          // Continue without loading - project will be created on first save
+        }
+      }
+    };
+    
+    // Register handler and connect
+    const unsubscribe = wsClient.onMessage('session_created', handleSessionCreated);
+    
     wsClient.connect().catch((error) => {
       console.error('Failed to connect to WebSocket:', error);
       // Fallback: continue without WebSocket (validation will fail gracefully)
     });
 
     return () => {
+      unsubscribe();
       wsClient.disconnect();
     };
-  }, []);
+  }, [setDSL, setNodes, setEdges]);
   
   // Debounce timer for position updates
   const positionUpdateTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -628,6 +674,11 @@ function Canvas() {
 
 function App() {
   const { canUndo, canRedo, undo, redo } = useEditorStore();
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  
+  // Store setCurrentProjectId in a ref so it can be accessed in Canvas
+  const setCurrentProjectIdRef = useRef<((id: string | null) => void) | null>(null);
+  setCurrentProjectIdRef.current = setCurrentProjectId;
   
   return (
     <div className="app">
@@ -664,6 +715,12 @@ function App() {
           </button>
         </div>
         
+        {/* Project Manager */}
+        <ProjectManager 
+          currentProjectId={currentProjectId} 
+          onProjectIdChange={setCurrentProjectId} 
+        />
+        
         {/* Import/Export */}
         <ImportExport />
         
@@ -675,7 +732,7 @@ function App() {
           {/* Center: Canvas */}
           <div style={{ flex: 1, position: 'relative' }}>
             <ReactFlowProvider>
-              <Canvas />
+              <Canvas onProjectLoaded={(projectId) => setCurrentProjectId(projectId)} />
             </ReactFlowProvider>
           </div>
           

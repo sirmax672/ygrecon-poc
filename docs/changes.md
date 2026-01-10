@@ -149,3 +149,32 @@ Template:
     - `apps/backend/src/api/websocket.py`: Updated to handle incremental actions
     - `apps/web/src/services/websocket.ts`: Updated to send incremental actions
     - `apps/web/src/App.tsx`, `apps/web/src/components/CustomNode.tsx`, `apps/web/src/components/NodePalette.tsx`: Updated to use new protocol
+
+## 2025-01-XX
+- Change: Added project persistence and database infrastructure (Iteration B1).
+- Reason: 
+  - Need persistent storage for projects so users can save and load their graphs
+  - Need user association (projects belong to users)
+  - Need ability to switch between multiple projects
+  - Foundation for future multi-user features (sharing, collaboration)
+- Impact:
+  - docs/adr/006-project-persistence-database.md: New ADR documenting database architecture decision
+  - docs/architecture.md: Added "Database & Persistence" section
+  - docs/roadmap.md: Added Iteration B1 — Project Persistence
+  - apps/backend/src/db/: New database module (database.py, models.py, migrations/)
+  - apps/backend/src/api/projects.py: New REST API for project CRUD
+  - apps/backend/src/api/session.py: Updated to include project_id field
+  - apps/backend/src/api/websocket.py: Updated to add load_project and save_project commands
+  - apps/backend/src/main.py: Updated to initialize database on startup
+- Migration/Notes:
+  - **Database**: SQLAlchemy ORM with SQLite for POC, PostgreSQL for production (switch via DATABASE_URL)
+  - **Models**: User (id, email, username) and Project (id, user_id, name, description, dsl_data)
+  - **Migrations**: Alembic for schema versioning (migrations stored in apps/backend/src/db/migrations/)
+  - **Separation**: Sessions (in-memory, WebSocket) and Projects (persistent, DB) remain separate
+  - **REST API**: `/api/projects` endpoints for CRUD operations
+  - **WebSocket commands**: `load_project` (load project from DB into session) and `save_project` (save session state to project)
+  - **Authentication**: Temporarily uses stub (`get_current_user()` returns test user); future: JWT or session-based
+  - **Database file**: `apps/backend/ygrecon.db` (SQLite, in .gitignore)
+  - **Initialization**: Database initialized automatically on backend startup
+  - **Migration path**: Switching from SQLite to PostgreSQL requires only changing DATABASE_URL environment variable (no code changes)
+  - See ADR 006 for architectural details

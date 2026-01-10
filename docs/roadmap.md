@@ -130,6 +130,44 @@ Rules:
 
 ---
 
+## Iteration B1 — Project Persistence
+
+**Goal:** add persistent storage for projects with user association, allowing users to save, load, and switch between projects.
+
+### Deliverables
+- [ ] Database infrastructure:
+  - [ ] SQLAlchemy ORM setup (`apps/backend/src/db/database.py`)
+  - [ ] Database models (`apps/backend/src/db/models.py`): User and Project
+  - [ ] Alembic migrations initialized (`apps/backend/src/db/migrations/`)
+  - [ ] First migration for users and projects tables
+  - [ ] Database initialization on backend startup
+- [ ] REST API for projects (`apps/backend/src/api/projects.py`):
+  - [ ] `GET /api/projects/`: List all projects for current user
+  - [ ] `GET /api/projects/{project_id}`: Get project by ID
+  - [ ] `POST /api/projects/`: Create new project
+  - [ ] `PUT /api/projects/{project_id}`: Update existing project
+  - [ ] `DELETE /api/projects/{project_id}`: Delete project
+  - [ ] Authentication stub (`get_current_user()` returns test user)
+- [ ] WebSocket integration:
+  - [ ] Update `Session` class: add `project_id` field
+  - [ ] `load_project` command: load project from DB into session
+  - [ ] `save_project` command: save session state to project
+  - [ ] Update WebSocket protocol documentation
+- [ ] Database configuration:
+  - [ ] SQLite for POC (default: `sqlite:///./ygrecon.db`)
+  - [ ] PostgreSQL support via `DATABASE_URL` environment variable
+  - [ ] Database file in `.gitignore`
+
+### DoD
+- Projects persist in database (survive server restart)
+- Users can create, read, update, and delete projects via REST API
+- WebSocket sessions can load projects from DB and save changes back
+- Database abstraction allows switching from SQLite to PostgreSQL via config
+- Alembic migrations ensure schema versioning
+- See `docs/adr/006-project-persistence-database.md` for architectural decisions
+
+---
+
 ## Iteration B — Simulation MVP (Backend Engine + Step/Turn Model)
 
 **Goal:** implement simulation engine on backend using step/turn model; frontend visualizes state updates.

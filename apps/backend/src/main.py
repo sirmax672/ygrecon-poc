@@ -3,8 +3,13 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .api.websocket import handle_websocket
+from .api import projects
+from .db.database import init_db
 
 app = FastAPI(title="YgrEcon Backend API")
+
+# Include routers
+app.include_router(projects.router)
 
 # CORS middleware for development
 app.add_middleware(
@@ -17,6 +22,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    init_db()
 
 
 @app.get("/")

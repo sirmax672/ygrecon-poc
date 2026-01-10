@@ -22,7 +22,7 @@ async def handle_websocket(websocket: WebSocket):
         "type": "session_created",
         "payload": {
             "session_id": session.session_id,
-            "graph": session.graph.model_dump()
+            "graph": session.graph.model_dump(by_alias=True)
         }
     }
     print(f"INFO: Sending message: {json.dumps(session_msg)[:200]}...")
@@ -84,6 +84,16 @@ async def handle_websocket(websocket: WebSocket):
 
             elif message_type == "get_graph":
                 response = await handle_get_graph(session, payload)
+                print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
+                await websocket.send_json(response)
+
+            elif message_type == "load_project":
+                response = await handle_load_project(session, payload)
+                print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
+                await websocket.send_json(response)
+
+            elif message_type == "save_project":
+                response = await handle_save_project(session, payload)
                 print(f"INFO: Sending message: {json.dumps(response)[:200]}...")
                 await websocket.send_json(response)
 
@@ -487,6 +497,174 @@ async def handle_get_graph(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "type": "graph_state",
         "payload": {
-            "graph": session.graph.model_dump()
+            "graph": session.graph.model_dump(by_alias=True)
         }
     }
+
+
+async def handle_load_project(session, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle load_project message - load project from DB into session."""
+    from ..db.database import SessionLocal
+    from ..db.models import Project, User
+
+    project_id = payload.get("project_id")
+    # TODO: Get from authentication - for now, get test user same way as REST API
+    if not project_id:
+        return {
+            "type": "error",
+            "payload": {
+                "message": "project_id is required",
+                "code": "MISSING_PROJECT_ID"
+            }
+        }
+
+    # Get database session
+    db = SessionLocal()
+    try:
+        # Get test user (same as REST API)
+        test_user = db.query(User).filter(User.email == "test@example.com").first()
+        if not test_user:
+            test_user = User(
+                email="test@example.com",
+                username="testuser",
+            )
+            db.add(test_user)
+            db.commit()
+            db.refresh(test_user)
+
+        print(f"INFO: Loading project {project_id} for user_id: {test_user.id}")
+
+        # Load project from DB
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.user_id == test_user.id  # Use real user ID from DB
+        ).first()
+
+        if not project:
+            print(f"INFO: Project not found. Available projects for user:")
+            all_projects = db.query(Project).filter(Project.user_id == test_user.id).all()
+            for p in all_projects:
+                print(f"  - {p.id}: {p.name}")
+            return {
+                "type": "error",
+                "payload": {
+                    "message": "Project not found",
+                    "code": "PROJECT_NOT_FOUND"
+                }
+            }
+
+        # Parse DSL JSON
+        graph = GraphDSL.model_validate_json(project.dsl_data)
+
+        # Load graph into session
+        session.update_graph(graph)
+        session.set_project_id(project_id)
+
+        return {
+            "type": "project_loaded",
+            "payload": {
+                "project_id": project_id,
+                "graph": graph.model_dump(by_alias=True)
+            }
+        }
+    finally:
+        db.close()
+
+
+async def handle_save_project(session, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle save_project message - save session state to project."""
+    from ..db.database import SessionLocal
+    from ..db.models import Project, User
+    from datetime import datetime
+
+    # Use project_id from payload, or fall back to session.project_id (set during load_project)
+    project_id = payload.get("project_id") or session.project_id
+    name = payload.get("name")
+    # TODO: Get from authentication - for now, get test user same way as REST API
+
+    print(f"INFO: Saving project, project_id from payload: {payload.get('project_id')}, session.project_id: {session.project_id}, using: {project_id}")
+
+    # Get database session
+    db = SessionLocal()
+    try:
+        # Get test user (same as REST API)
+        test_user = db.query(User).filter(User.email == "test@example.com").first()
+        if not test_user:
+            test_user = User(
+                email="test@example.com",
+                username="testuser",
+            )
+            db.add(test_user)
+            db.commit()
+            db.refresh(test_user)
+
+        print(f"INFO: Using user_id: {test_user.id}")
+
+        if project_id:
+            # Update existing project
+            project = db.query(Project).filter(
+                Project.id == project_id,
+                Project.user_id == test_user.id  # Use real user ID from DB
+            ).first()
+
+            if not project:
+                return {
+                    "type": "error",
+                    "payload": {
+                        "message": "Project not found",
+                        "code": "PROJECT_NOT_FOUND"
+                    }
+                }
+
+            # Update project
+            if name:
+                project.name = name
+            project.dsl_data = session.graph.model_dump_json()
+            project.updated_at = datetime.utcnow()
+
+            db.commit()
+            db.refresh(project)
+
+            # Ensure session is linked to this project
+            session.set_project_id(project.id)
+
+            return {
+                "type": "project_saved",
+                "payload": {
+                    "project_id": project.id
+                }
+            }
+        else:
+            # Create new project
+            if not name:
+                return {
+                    "type": "error",
+                    "payload": {
+                        "message": "name is required when creating new project",
+                        "code": "MISSING_PROJECT_NAME"
+                    }
+                }
+
+            # Create project
+            project = Project(
+                user_id=test_user.id,  # Use real user ID from DB
+                name=name,
+                description=payload.get("description"),
+                dsl_data=session.graph.model_dump_json(),
+            )
+
+            db.add(project)
+            db.commit()
+            db.refresh(project)
+
+            # Link session to project
+            session.set_project_id(project.id)
+
+            return {
+                "type": "project_saved",
+                "payload": {
+                    "project_id": project.id
+                }
+            }
+    finally:
+        db.close()

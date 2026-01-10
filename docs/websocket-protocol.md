@@ -11,7 +11,9 @@ This document defines the client-server communication protocol for the YgrEcon g
 - Backend maintains graph state in memory per session
 - Session is created automatically on WebSocket connect
 - Session is destroyed on WebSocket disconnect
-- Graph state is lost on disconnect (future: add persistence)
+- Session can load a project from database (`load_project` command)
+- Session can save its state to a project (`save_project` command)
+- Session maintains optional `project_id` to track which project it's working with
 
 ## Message Format
 
@@ -290,6 +292,101 @@ Request current graph state (useful for reconnection/sync).
 }
 ```
 
+### `load_project`
+
+Load project from database into current session.
+
+**Request:**
+```json
+{
+  "type": "load_project",
+  "payload": {
+    "project_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_id": "test-user-1"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "type": "project_loaded",
+  "payload": {
+    "project_id": "550e8400-e29b-41d4-a716-446655440000",
+    "graph": {
+      "dslVersion": "0.2",
+      "meta": {
+        "name": "My Project",
+        "seed": 12345
+      },
+      "resources": [],
+      "nodes": [],
+      "edges": []
+    }
+  }
+}
+```
+
+Or on error:
+```json
+{
+  "type": "error",
+  "payload": {
+    "message": "Project not found",
+    "code": "PROJECT_NOT_FOUND"
+  }
+}
+```
+
+### `save_project`
+
+Save current session state to project (update existing or create new).
+
+**Request (update existing):**
+```json
+{
+  "type": "save_project",
+  "payload": {
+    "project_id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Updated Project Name",
+    "user_id": "test-user-1"
+  }
+}
+```
+
+**Request (create new):**
+```json
+{
+  "type": "save_project",
+  "payload": {
+    "name": "New Project",
+    "description": "Project description",
+    "user_id": "test-user-1"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "type": "project_saved",
+  "payload": {
+    "project_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+Or on error:
+```json
+{
+  "type": "error",
+  "payload": {
+    "message": "Project not found",
+    "code": "PROJECT_NOT_FOUND"
+  }
+}
+```
+
 ## Backend → Frontend Messages
 
 ### `session_created`
@@ -342,6 +439,9 @@ Error response for any request.
 - `NODE_NOT_FOUND`: Node does not exist
 - `EDGE_NOT_FOUND`: Edge does not exist
 - `INVALID_CONNECTION`: Connection validation failed (node-type-specific)
+- `PROJECT_NOT_FOUND`: Project does not exist
+- `MISSING_PROJECT_ID`: Project ID is required
+- `MISSING_PROJECT_NAME`: Project name is required when creating new project
 - `SERVER_ERROR`: Internal server error
 
 ## Connection Lifecycle

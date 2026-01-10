@@ -25,37 +25,55 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
     },
   }));
 
-  const edges: Edge[] = dsl.edges.map((edge) => {
-    const sourceHandle = normalizeHandleId(edge.params.sourceHandle as string | undefined);
-    const targetHandle = normalizeHandleId(edge.params.targetHandle as string | undefined);
-    const points = edge.params.points as Array<{ x: number; y: number }> | undefined;
-    const label = edge.params.label as string | undefined;
-    const formula = edge.params.formula as string | undefined;
-    const formulaPosition = edge.params.formulaPosition as number | undefined;
-    
-    // Use polyline type for all edges (allows adding points to any edge)
-    return {
-      id: edge.id,
-      source: edge.from,
-      target: edge.to,
-      type: 'polyline',
-      // Source handles use base ID, target handles use base ID + "-target"
-      sourceHandle: sourceHandle,
-      targetHandle: targetHandle ? `${targetHandle}-target` : undefined,
-      markerEnd: {
-        type: 'arrowclosed',
-      },
-      data: {
-        params: {
-          ...edge.params,
-          label: label || '',
-          formula: formula || '',
-          formulaPosition: formulaPosition ?? 0.5,
+  // Create a Set for quick node ID lookup
+  const nodeIds = new Set(nodes.map(n => n.id));
+
+  const edges: Edge[] = dsl.edges
+    .map((edge) => {
+      // Support both variants: "from" (alias) and "from_" (Python field name)
+      // This handles cases where model_dump() was called without by_alias=True
+      const sourceNodeId = (edge as any).from || (edge as any).from_;
+      const targetNodeId = edge.to;
+
+      // Validate: both nodes must exist
+      if (!nodeIds.has(sourceNodeId) || !nodeIds.has(targetNodeId)) {
+        console.warn(
+          `Edge ${edge.id} skipped: source=${sourceNodeId} or target=${targetNodeId} not found in nodes`
+        );
+        return null;
+      }
+
+      const sourceHandle = normalizeHandleId(edge.params.sourceHandle as string | undefined);
+      const targetHandle = normalizeHandleId(edge.params.targetHandle as string | undefined);
+      const points = edge.params.points as Array<{ x: number; y: number }> | undefined;
+      const label = edge.params.label as string | undefined;
+      const formula = edge.params.formula as string | undefined;
+      const formulaPosition = edge.params.formulaPosition as number | undefined;
+
+      // Use polyline type for all edges (allows adding points to any edge)
+      return {
+        id: edge.id,
+        source: sourceNodeId,
+        target: targetNodeId,
+        type: 'polyline',
+        // Source handles use base ID, target handles use base ID + "-target"
+        sourceHandle: sourceHandle,
+        targetHandle: targetHandle ? `${targetHandle}-target` : undefined,
+        markerEnd: {
+          type: 'arrowclosed',
         },
-        points: points || [], // Store points in edge.data for PolylineEdge component
-      },
-    };
-  });
+        data: {
+          params: {
+            ...edge.params,
+            label: label || '',
+            formula: formula || '',
+            formulaPosition: formulaPosition ?? 0.5,
+          },
+          points: points || [], // Store points in edge.data for PolylineEdge component
+        },
+      };
+    })
+    .filter((edge): edge is Edge => edge !== null); // Remove null edges
 
   return { nodes, edges };
 }
