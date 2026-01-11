@@ -9,11 +9,12 @@ export const drain: NodeTypeDefinition = {
   },
   paramsSchema: z.object({
     resourceId: z.string().optional(),
+    consumptionRate: z.number().optional(),
+    activation: z.enum(['automatic', 'passive', 'interactive']).optional(),
+    activationMode: z.enum(['pull-any']).optional(),
   }),
   ports: {
     inputs: ['input'],
     outputs: [],
   },
 };
-
-

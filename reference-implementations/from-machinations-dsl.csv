@@ -1,0 +1,108 @@
+,,,,,,,,,,,,,,,,,,,
+DIAGRAM PROPERTIES,,,,,,,,,,,,,,,,,,,
+,Name:,Copy of Loot Drop Distribution,,,,,,,,,,,,,,,,,
+,URL:,https://my.machinations.io/d/copy-of-loot-drop-distribution/f0ed99b6e10311f0838a0abc5ce0dcc9,,,,,,,,,,,,,,,,,
+,Owner:,Max Pavlov,,,,,,,,,,,,,,,,,
+,Creation Date:,1/1/1970,,,,,,,,,,,,,,,,,
+,Last Change:,1/1/1970 0:0:2,,,,,,,,,,,,,,,,,
+,Time Interval:,1,,,,,,,,,,,,,,,,,
+,Time Steps Limit:,20,,,,,,,,,,,,,,,,,
+,Number of Runs (total):,5,,,,,,,,,,,,,,,,,
+,Exporting Codec:,v2.1,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+DIAGRAM RESOURCES,,,,,,,,,,,,,,,,,,,
+Name,Display Name,Description,Default,Active,Content,,,,,,,,,,,,,,
+Farm Goods,Farm Goods,,no,yes,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><rect x='5' y='5' width='8' height='10' rx='1' fill='none' stroke='#000000' stroke-width='2'/><path d='M5 8h8' stroke='#000000' stroke-width='2'/></svg>,,,,,,,,,,,,,,
+Luminosity,Luminosity,,no,yes,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><circle cx='9' cy='9' r='7' fill='none' stroke='#0060e0' stroke-width='2'/><path d='M9 5v8M5 9h8' stroke='#0060e0' stroke-width='2'/></svg>,,,,,,,,,,,,,,
+Seeds,Seeds,,no,yes,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><circle cx='9' cy='12' r='3' fill='#ff9900'/><path d='M9 9V4' stroke='#ff9900' stroke-width='2'/></svg>,,,,,,,,,,,,,,
+Skills,Skills,,no,yes,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><path d='M3 15l6-12 6 12H3z' fill='none' stroke='#009900' stroke-width='2'/></svg>,,,,,,,,,,,,,,
+Vegetables,Vegetables,,no,yes,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><path d='M9 2s-4 4-4 8 4 6 4 6 4-2 4-6-4-8-4-8z' fill='#009900'/></svg>,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+SOURCES,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Resources (color),Activation Mode,Position,,,,,,,,,,
+3049,>START A PLAY AND CLICK MEFind Loot,201,,"{""labelPoint"":{""x"":11652.22222222222,""y"":1846},""newFormat"":""1"",""x"":11639,""y"":1771,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#7B1FA2;strokeWidth=2;fillColor=#FFFFFF;shape=source-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#7B1FA2,automatic,Black,push-any,50,,,,,,,,,,
+3080,,201,,"{""newFormat"":""1"",""x"":11731,""y"":1358,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,automatic,Green,push-any,51,,,,,,,,,,
+3208,Win Battle,201,,"{""newFormat"":""1"",""x"":12800,""y"":1700,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,automatic,Luminosity,push-any,59,,,,,,,,,,
+3231,Seed Merchant,201,,"{""newFormat"":""1"",""x"":12400,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,automatic,Seeds,push-any,60,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+DRAINS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Activation Mode,Position,,,,,,,,,,,
+3252,,201,,"{""newFormat"":""1"",""x"":12076,""y"":1427,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,66,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+POOLS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Activation Mode,Resources,Resources (color),Capacity (limit),Capacity (display),Overflow,Show in chart,Position,,,,,
+3052,Common Item,201,,"{""labelPoint"":{""x"":12277,""y"":1637},""newFormat"":""1"",""x"":12167,""y"":1610,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#9E9A9E;strokeWidth=2;fillColor=#FFFFFF;shape=pool-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#9E9A9E,automatic,push-all,0,Black,-1,0,block,true,50,,,,,
+3054,Uncommon Item,201,,"{""labelPoint"":{""x"":12308.5,""y"":1725},""newFormat"":""1"",""x"":12190,""y"":1702,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#4CAF50;strokeWidth=2;fillColor=#FFFFFF;shape=pool-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#4CAF50,automatic,push-all,0,Black,-1,0,block,true,50,,,,,
+3056,Rare Item,201,,"{""labelPoint"":{""x"":12280.5,""y"":1795.0581395348834},""newFormat"":""1"",""x"":12190,""y"":1771,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#2196F3;strokeWidth=2;fillColor=#FFFFFF;shape=pool-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#2196F3,passive,pull-any,0,Black,-1,0,block,true,50,,,,,
+3058,Epic Item,201,,"{""labelPoint"":{""x"":12282,""y"":1863},""newFormat"":""1"",""x"":12190,""y"":1840,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#E326F2;strokeWidth=2;fillColor=#FFFFFF;shape=pool-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#E326F2,passive,pull-any,0,Black,-1,0,block,true,50,,,,,
+3060,Legendary Item,201,,"{""labelPoint"":{""x"":12304,""y"":1930},""newFormat"":""1"",""x"":12190,""y"":1909,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#FF9800;strokeWidth=2;fillColor=#FFFFFF;shape=pool-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#FF9800,passive,pull-any,0,Black,-1,0,block,true,50,,,,,
+3081,,201,,"{""newFormat"":""1"",""x"":12423,""y"":1587,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,0,Black,100,-1,block,false,52,,,,,
+3209,Luminosity Stash,201,,"{""labelPoint"":{""x"":13065,""y"":1578.5},""newFormat"":""1"",""x"":13042,""y"":1518,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,0,Luminosity,-1,0,block,true,59,,,,,
+3211,Skills Unlocked,201,,"{""labelPoint"":{""x"":13663,""y"":1760.5},""newFormat"":""1"",""x"":13640,""y"":1700,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,0,Skills,-1,0,block,true,59,,,,,
+3232,Seed Bag,201,,"{""newFormat"":""1"",""x"":12600,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,5,Seeds,-1,0,block,false,60,,,,,
+3234,Barn Storage,201,,"{""newFormat"":""1"",""x"":13000,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,0,Vegetables,-1,0,block,true,60,,,,,
+3236,Goods Basket,201,,"{""newFormat"":""1"",""x"":13400,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,0,Farm Goods,-1,0,block,true,60,,,,,
+,,,,,,,,,,,,,,,,,,,
+GATES,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Activation Mode,Distribution,Position,,,,,,,,,,
+3050,Lootbox,201,,"{""labelPoint"":{""x"":12028.275862068964,""y"":1836.5},""newFormat"":""1"",""x"":12007,""y"":1771,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#53565A;strokeWidth=2;fillColor=none;shape=gate-shape;whiteSpace=wrap;html=1;aspect=fixed;resizable=0;fontColor=#53565A,passive,pull-any,dice,50,,,,,,,,,,
+3086,,201,,"{""newFormat"":""1"",""x"":11915,""y"":1473,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,deterministic,54,,,,,,,,,,
+3250,,201,,"{""newFormat"":""1"",""x"":12446,""y"":1427,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,deterministic,64,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+TRADERS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Trade,Position,,,,,,,,,,,
+3089,,201,,"{""newFormat"":""1"",""x"":11938,""y"":1564,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,single,56,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+CONVERTERS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Activation,Activation Mode,Resources (color),Conversion,Position,,,,,,,,,
+3088,,201,,"{""newFormat"":""1"",""x"":11708,""y"":1496,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,Black,single,55,,,,,,,,,
+3210,Skill Painting,201,,"{""newFormat"":""1"",""x"":13300,""y"":1700,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,Skills,single,59,,,,,,,,,
+3233,Garden Plot,201,,"{""newFormat"":""1"",""x"":12800,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,Vegetables,single,60,,,,,,,,,
+3235,Livestock Pen,201,,"{""newFormat"":""1"",""x"":13200,""y"":2100,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,automatic,pull-any,Farm Goods,single,60,,,,,,,,,
+3237,Market Store,201,,"{""labelPoint"":{""x"":13088,""y"":2004},""newFormat"":""1"",""x"":13065,""y"":1943.5,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,passive,pull-any,Luminosity,single,60,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+REGISTERS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Formula,Interactive,Limits (minimum),Limits (maximum),Value (initial),Value (step),Show in chart,Interactive,Force update in each step,Position,,,,
+3247,,201,,"{""newFormat"":""1"",""x"":12600,""y"":2278,""width"":46,""height"":46}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,,true,,,0,1,false,true,false,62,,,,
+,,,,,,,,,,,,,,,,,,,
+RESOURCE CONNECTIONS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Formula Type,Formula Subtype,Formula Param. 1,Formula Param. 2,Interval,Source,Target,Transfer,Color Coding,Color Coding (color),Shuffle Source,Limits (minimum),Limits (maximum),Position
+3051,Items Found,201,,"{""sourcePoint"":{""x"":14340.184000000001,""y"":2557},""formulaPoint"":{""x"":11847.464,""y"":1794},""labelPoint"":{""x"":11849.925303071486,""y"":1771},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#4D4D4D;strokeWidth=2;fillColor=none;shape=resource-connection;endArrow=classic;html=1;fontColor=#4D4D4D;align=center;fontStyle=0;edgeStyle=orthogonalEdgeStyle;elbow=0;curved=0,number,,5,,,3049,3050,interval-based,false,Black,false,,,50
+3053,,201,,"{""formulaPoint"":{""x"":12110,""y"":1713.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#9E9A9E;strokeWidth=2;fillColor=#FFFFFF;shape=resource-connection;endArrow=classic;html=1;fontColor=#9E9A9E,chance,,60,,,3050,3052,interval-based,false,Black,false,,,50
+3055,,201,,"{""formulaPoint"":{""x"":12121.5,""y"":1759.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#4CAF50;strokeWidth=2;fillColor=#FFFFFF;shape=resource-connection;endArrow=classic;html=1;fontColor=#4CAF50,chance,,20,,,3050,3054,interval-based,false,Black,false,,,50
+3057,,201,,"{""formulaPoint"":{""x"":12121.5,""y"":1794},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#2196F3;strokeWidth=2;fillColor=#FFFFFF;shape=resource-connection;endArrow=classic;html=1;fontColor=#2196F3,chance,,10,,,3050,3056,interval-based,false,Black,false,,,50
+3059,,201,,"{""formulaPoint"":{""x"":12121.5,""y"":1828.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#E326F2;strokeWidth=2;fillColor=#FFFFFF;shape=resource-connection;endArrow=classic;html=1;fontColor=#E326F2,chance,,9,,,3050,3058,interval-based,false,Black,false,,,50
+3061,,201,,"{""formulaPoint"":{""x"":12121.5,""y"":1863},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#FF9800;strokeWidth=2;fillColor=#FFFFFF;shape=resource-connection;endArrow=classic;html=1;fontColor=#FF9800,chance,,1,,,3050,3060,interval-based,false,Black,false,,,50
+3090,,201,,"{""formulaPoint"":{""x"":12318.153,""y"":1621.486},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,all,,1,,,3052,3081,interval-based,false,Black,false,,,57
+3091,,201,,"{""formulaPoint"":{""x"":12329.805,""y"":1667.35},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,number,,2,,,3054,3081,interval-based,false,Black,false,,,58
+3212,Battle Rewards,201,,"{""formulaPoint"":{""x"":12946.74,""y"":1629.94},""labelPoint"":{""x"":12992.776866359449,""y"":1655.44},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,Dice Roll,,,6,,3208,3209,interval-based,true,Luminosity,false,,,59
+3213,Unlock Cost,201,,"{""formulaPoint"":{""x"":13190.658,""y"":1629.643},""labelPoint"":{""x"":13225.704242774567,""y"":1655.143},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,10,,,3209,3210,interval-based,true,Luminosity,false,,,59
+3214,New Skill,201,,"{""formulaPoint"":{""x"":13496.378,""y"":1723},""labelPoint"":{""x"":13521.43815037594,""y"":1748.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,1,,,3210,3211,interval-based,true,Skills,false,,,59
+3238,Buy Seeds,201,,"{""formulaPoint"":{""x"":12526.5,""y"":2123},""labelPoint"":{""x"":12556.05298013245,""y"":2148.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,1,,,3231,3232,interval-based,true,Seeds,false,,,60
+3239,Plant,201,,"{""formulaPoint"":{""x"":12719,""y"":2123},""labelPoint"":{""x"":12729.606666666667,""y"":2148.5},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,1,,,3232,3233,interval-based,true,Seeds,false,,,60
+3240,Harvest,201,,"{""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,3,,,3233,3234,interval-based,true,Vegetables,false,,,60
+3241,Feed Animals,201,,"{""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,5,,,3234,3235,interval-based,true,Vegetables,false,,,60
+3242,Produce Goods,201,,"{""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,2,,,3235,3236,interval-based,true,Farm Goods,false,,,60
+3243,Ship to Market,201,,"{""formulaPoint"":{""x"":13259.404,""y"":2046.574},""labelPoint"":{""x"":13347.404,""y"":2050.557870967742},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,1,,,3236,3237,interval-based,true,Farm Goods,false,,,60
+3244,Sale Profit,201,,"{""formulaPoint"":{""x"":13076.298,""y"":1750.018},""labelPoint"":{""x"":13125.99869877459,""y"":1724.518},""newFormat"":""1""}",fontFamily=Roboto;fontSize=14;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff,number,,10,,,3237,3209,interval-based,true,Luminosity,false,,,60
+3251,,201,,"{""formulaPoint"":{""x"":11870.293,""y"":1417.569},""points"":[{""x"":11845,""y"":1357},{""x"":11845,""y"":1426},{""x"":11914,""y"":1403}],""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,number,,2,,,3080,3086,interval-based,false,Black,false,,,65
+3253,,201,,"{""formulaPoint"":{""x"":12014.922,""y"":1474.022},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,weights,,1,,,3086,3252,interval-based,false,Black,false,,,67
+3254,,201,,"{""formulaPoint"":{""x"":11984.018,""y"":1645.058},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,weights,,1,,,3086,3050,interval-based,false,Black,false,,,68
+,,,,,,,,,,,,,,,,,,,
+STATE CONNECTIONS,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Formula Type,Formula Subtype,Formula Param. 1,Formula Param. 2,Source,Target,Color Coding,Color Coding (color),Trigger on,Position,,,,
+3245,,201,,"{""formulaPoint"":{""x"":12884.607,""y"":1867.833},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,modify-value,add-change,1,,3233,3212,false,Black,,61,,,,
+3249,,201,,"{""formulaPoint"":{""x"":12576.715,""y"":2206.786},""newFormat"":""1""}",fontFamily=Roboto;fontSize=16;strokeColor=#000000;strokeWidth=2;fillColor=#ffffff;edgeStyle=straight,condition,equal,1,,3247,3238,false,Black,,63,,,,
+,,,,,,,,,,,,,,,,,,,
+TEXT,,,,,,,,,,,,,,,,,,,
+ID,Label,Layer ID,Group ID,Geometry,Style,Position,,,,,,,,,,,,,
+3062,&lt;p style=&quot;text-align: center&quot;&gt;Modify the percentages on the connections so that specific rarities are generated more/ less frequently&lt;br&gt;&lt;br&gt;⬇️ &lt;/p&gt;,201,,"{""newFormat"":""1"",""x"":11984,""y"":1541,""width"":276,""height"":138}",fontFamily=Roboto;fontSize=16;strokeColor=none;strokeWidth=0;fillColor=none;radius=0,39,,,,,,,,,,,,,
+3063,&lt;p style=&quot;text-align: center&quot;&gt;Each Rarity pool will display the number of drops of each type &lt;br&gt;&lt;br&gt;(You can also check the values in the chart)&lt;/p&gt;,201,,"{""newFormat"":""1"",""x"":12423,""y"":1725,""width"":253,""height"":138}",fontFamily=Roboto;fontSize=16;strokeColor=none;strokeWidth=0;fillColor=none;radius=0,41,,,,,,,,,,,,,
+3064,&lt;p&gt;⬅️&lt;/p&gt;,201,,"{""newFormat"":""1"",""x"":12377,""y"":1782.5,""width"":253,""height"":69}",fontFamily=Roboto;fontSize=16;strokeColor=none;strokeWidth=0;fillColor=none;radius=0,42,,,,,,,,,,,,,
+3065,&lt;p style=&quot;text-align: center&quot;&gt;⬆️&lt;br&gt;&lt;br&gt;You can increase or decrease the number of items found by changing the connection formula&lt;/p&gt;,201,,"{""newFormat"":""1"",""x"":11777,""y"":1863,""width"":253,""height"":138}",fontFamily=Roboto;fontSize=16;strokeColor=none;strokeWidth=0;fillColor=none;radius=0,43,,,,,,,,,,,,,
+3066,"&lt;p style=&quot;text-align: center&quot;&gt;To start a looting action during a simulation, click on the triangle below. &lt;br&gt;(This node is set to &quot;Interactive&quot; activation - it will fire after you click on it)&lt;br&gt;&lt;br&gt;⬇️&lt;/p&gt;",201,,"{""newFormat"":""1"",""x"":11616,""y"":1598.5,""width"":322,""height"":161}",fontFamily=Roboto;fontSize=16;strokeColor=none;strokeWidth=0;fillColor=none;radius=0,40,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+LAYERS,,,,,,,,,,,,,,,,,,,
+ID,Label,Parent Layer ID,Visible,Locked,,,,,,,,,,,,,,,
+200,,,true,false,,,,,,,,,,,,,,,
+201,,200,true,false,,,,,,,,,,,,,,,

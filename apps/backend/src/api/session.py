@@ -19,7 +19,7 @@ class Session:
             meta=GraphMeta(name="", seed=12345),
             resources=[],
             nodes=[],
-            edges=[],
+            connections=[],  # Renamed from edges
         )
 
     def get_graph(self) -> Graph:

@@ -48,7 +48,7 @@ interface CanvasProps {
 function Canvas({ onProjectLoaded }: CanvasProps) {
   const {
     nodes,
-    edges,
+    edges, // ReactFlow Edge type (internal alias for connections)
     dsl,
     setNodes,
     setEdges,
@@ -58,6 +58,14 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
     setValidationErrors,
     selectedNodeId,
     selectedEdgeId,
+    selectedConnectionType,
+    connectionCreationMode,
+    setConnectionCreationMode,
+    setConnectionCreationSourceNodeId,
+    // Backward compatibility aliases
+    edgeCreationMode,
+    setEdgeCreationMode,
+    setEdgeCreationSourceNodeId,
   } = useEditorStore();
   
   const { getNode, getEdge } = useReactFlow();
@@ -240,19 +248,23 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
         const tempEdges = edges.map((e) => (e.id === oldEdge.id ? tempEdge : e));
         const tempDSL = xyFlowToDSL(nodes, tempEdges, dsl);
         
-        // Update edge via WebSocket (delete old, create new)
+        // Update connection via WebSocket (delete old, create new)
         const wsClient = getWebSocketClient();
         const sourceHandle = normalizedConnection.sourceHandle?.replace(/-target$/, '');
         const targetHandle = normalizedConnection.targetHandle?.replace(/-target$/, '');
         const newSource = normalizedConnection.source || oldEdge.source;
         const newTarget = normalizedConnection.target || oldEdge.target;
         
-        // Update edge on server (keep same ID, just update connection)
-        wsClient.deleteEdge(oldEdge.id).then(() => {
-          return wsClient.createEdge(
-            oldEdge.id, // Keep the same edge ID
+        // Get connection type from old edge data (default to "resource")
+        const connectionType = (oldData as any)?.type || 'resource';
+        
+        // Update connection on server (keep same ID, just update connection)
+        wsClient.deleteConnection(oldEdge.id).then(() => {
+          return wsClient.createConnection(
+            oldEdge.id, // Keep the same connection ID
             newSource,
             newTarget,
+            connectionType, // Preserve connection type
             sourceHandle,
             targetHandle,
             (oldData.params || {}) as Record<string, unknown>
@@ -286,6 +298,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
                   data: {
                     ...oldData,
                     ...edge.data,
+                    type: connectionType, // Preserve connection type
                     points: oldPoints,
                   },
                 };
@@ -302,7 +315,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
             }
           }
         }).catch((error) => {
-          console.error('Failed to reconnect edge:', error);
+          console.error('Failed to reconnect connection:', error);
           // On error, allow reconnection (fail open for now)
           const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
           const finalEdges = updatedEdges.map((edge) => {
@@ -317,6 +330,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
                 data: {
                   ...oldData,
                   ...edge.data,
+                  type: connectionType, // Preserve connection type
                   points: oldPoints,
                 },
               };
@@ -336,6 +350,9 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
       // reconnectEdge handles the reconnection and uses the actual handle IDs from ReactFlow
       const updatedEdges = reconnectEdge(oldEdge, normalizedConnection, edges);
       
+      // Get connection type from old edge data (default to "resource")
+      const connectionType = (oldData as any)?.type || 'resource';
+      
       // Ensure the edge keeps its original ID and preserve all data
       const finalEdges = updatedEdges.map((edge) => {
         // Find the reconnected edge and ensure it keeps the original ID
@@ -349,6 +366,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
             data: {
               ...oldData, // Preserve all old data
               ...edge.data, // Merge with new data from reconnectEdge
+              type: connectionType, // Preserve connection type
               points: oldPoints, // Preserve all existing points (even if empty)
             },
           };
@@ -384,6 +402,16 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
         return;
       }
       
+      // If connection creation mode is active, use the selected connection type
+      // Otherwise, default to "resource" for backward compatibility
+      const connectionType = connectionCreationMode && selectedConnectionType ? selectedConnectionType : 'resource';
+      
+      // Reset connection creation mode after creating connection
+      if (connectionCreationMode) {
+        setConnectionCreationMode(false);
+        setConnectionCreationSourceNodeId(null);
+      }
+      
       // Determine direction based on where connection started
       // If connection started from a specific node, use that as source
       let finalSource = connection.source;
@@ -415,9 +443,9 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
         finalTargetHandle = `${finalTargetHandle}-target`;
       }
       
-      // Create temporary edge for validation
+      // Create temporary edge for ReactFlow (connections -> edges for ReactFlow)
       const tempEdge: Edge = {
-        id: `edge_${Date.now()}`,
+        id: `connection_${Date.now()}`,
         source: finalSource,
         target: finalTarget,
         type: 'polyline', // Use polyline edge type by default
@@ -427,26 +455,28 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
           type: 'arrowclosed',
         },
         data: {
+          type: connectionType, // Store connection type in edge.data
           params: {},
           points: [], // Initialize with empty points array
         },
       };
       
-      // Create edge via WebSocket (backend validates and stores)
+      // Create connection via WebSocket (backend validates and stores)
       const wsClient = getWebSocketClient();
       const sourceHandle = finalSourceHandle?.replace(/-target$/, '');
       const targetHandle = finalTargetHandle?.replace(/-target$/, '');
       
-      wsClient.createEdge(
+      wsClient.createConnection(
         tempEdge.id,
         finalSource,
         finalTarget,
+        connectionType, // Pass connection type
         sourceHandle,
         targetHandle,
         {}
       ).then((result) => {
         if (!result.valid && result.issues && result.issues.length > 0) {
-          // Show validation errors and prevent edge creation
+          // Show validation errors and prevent connection creation
           const errorMessages = result.issues.map(
             (issue) => `${issue.code}: ${issue.message}`
           );
@@ -456,7 +486,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
           // Clear validation errors if connection is valid
           setValidationErrors([]);
           
-          // Connection is valid, create the edge locally
+          // Connection is valid, create the edge locally (ReactFlow Edge)
           const newEdges = [...edges, tempEdge];
           setEdges(newEdges);
           
@@ -470,7 +500,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
           }
         }
       }).catch((error) => {
-        console.error('Failed to create edge:', error);
+        console.error('Failed to create connection:', error);
         // On error, allow connection (fail open for now)
         const newEdges = [...edges, tempEdge];
         setEdges(newEdges);
@@ -481,7 +511,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
         }
       });
     },
-    [nodes, edges, dsl, setEdges, setDSL, setValidationErrors, connectionStartNode]
+    [nodes, edges, dsl, setEdges, setDSL, setValidationErrors, connectionStartNode, selectedConnectionType, connectionCreationMode, setConnectionCreationMode, setConnectionCreationSourceNodeId]
   );
   
   // Ensure all edges have polyline type
@@ -549,8 +579,8 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
               (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
             );
             
-            // Delete edges from backend
-            Promise.all(edgesToDelete.map((edge) => wsClient.deleteEdge(edge.id)))
+            // Delete connections from backend
+            Promise.all(edgesToDelete.map((edge) => wsClient.deleteConnection(edge.id)))
               .then(() => {
                 setEdges(newEdges);
                 
@@ -561,7 +591,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
                 }
               })
               .catch((error) => {
-                console.error('Failed to delete edges:', error);
+                console.error('Failed to delete connections:', error);
                 // Update UI anyway (fail open)
                 setEdges(newEdges);
                 if (dsl) {
@@ -587,9 +617,9 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
             }
           });
         } else if (selectedEdgeId) {
-          // Delete edge via WebSocket
+          // Delete connection via WebSocket
           const wsClient = getWebSocketClient();
-          wsClient.deleteEdge(selectedEdgeId).then(() => {
+          wsClient.deleteConnection(selectedEdgeId).then(() => {
             const newEdges = edges.filter((e) => e.id !== selectedEdgeId);
             setEdges(newEdges);
             setSelectedEdgeId(null);
@@ -600,7 +630,7 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
               setDSL(newDSL);
             }
           }).catch((error) => {
-            console.error('Failed to delete edge:', error);
+            console.error('Failed to delete connection:', error);
             // Update UI anyway (fail open)
             const newEdges = edges.filter((e) => e.id !== selectedEdgeId);
             setEdges(newEdges);
@@ -630,15 +660,16 @@ function Canvas({ onProjectLoaded }: CanvasProps) {
     setSelectedEdgeId,
   ]);
   
-  const { edgeCreationMode, setEdgeCreationMode, setEdgeCreationSourceNodeId } = useEditorStore();
-  
-  // Disable edge creation mode when clicking on pane
+  // Disable connection creation mode when clicking on pane
   const onPaneClick = useCallback(() => {
-    if (edgeCreationMode) {
+    if (connectionCreationMode || edgeCreationMode) {
+      setConnectionCreationMode(false);
+      setConnectionCreationSourceNodeId(null);
+      // Backward compatibility
       setEdgeCreationMode(false);
       setEdgeCreationSourceNodeId(null);
     }
-  }, [edgeCreationMode, setEdgeCreationMode, setEdgeCreationSourceNodeId]);
+  }, [connectionCreationMode, edgeCreationMode, setConnectionCreationMode, setConnectionCreationSourceNodeId, setEdgeCreationMode, setEdgeCreationSourceNodeId]);
   
   return (
     <ReactFlow

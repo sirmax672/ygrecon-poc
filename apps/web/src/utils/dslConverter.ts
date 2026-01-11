@@ -11,13 +11,13 @@ function normalizeHandleId(handleId: string | null | undefined): string | undefi
 }
 
 /**
- * Convert DSL graph to XYFlow nodes and edges
+ * Convert DSL graph to XYFlow nodes and edges (connections -> edges for ReactFlow)
  */
 export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = dsl.nodes.map((node) => ({
     id: node.id,
     type: 'custom',
-    position: node.position || { x: 0, y: 0 }, // Use saved position or default
+    position: node.visual?.position || { x: 0, y: 0 }, // Use visual.position or default
     data: {
       label: node.id,
       type: node.type,
@@ -28,31 +28,39 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
   // Create a Set for quick node ID lookup
   const nodeIds = new Set(nodes.map(n => n.id));
 
-  const edges: Edge[] = dsl.edges
-    .map((edge) => {
+  // Use connections if available, otherwise fall back to edges (backward compatibility)
+  const connections = dsl.connections || dsl.edges || [];
+  
+  const edges: Edge[] = connections
+    .map((conn) => {
       // Support both variants: "from" (alias) and "from_" (Python field name)
-      // This handles cases where model_dump() was called without by_alias=True
-      const sourceNodeId = (edge as any).from || (edge as any).from_;
-      const targetNodeId = edge.to;
+      const sourceNodeId = (conn as any).from || (conn as any).from_;
+      const targetNodeId = conn.to;
 
       // Validate: both nodes must exist
       if (!nodeIds.has(sourceNodeId) || !nodeIds.has(targetNodeId)) {
         console.warn(
-          `Edge ${edge.id} skipped: source=${sourceNodeId} or target=${targetNodeId} not found in nodes`
+          `Connection ${conn.id} skipped: source=${sourceNodeId} or target=${targetNodeId} not found in nodes`
         );
         return null;
       }
 
-      const sourceHandle = normalizeHandleId(edge.params.sourceHandle as string | undefined);
-      const targetHandle = normalizeHandleId(edge.params.targetHandle as string | undefined);
-      const points = edge.params.points as Array<{ x: number; y: number }> | undefined;
-      const label = edge.params.label as string | undefined;
-      const formula = edge.params.formula as string | undefined;
-      const formulaPosition = edge.params.formulaPosition as number | undefined;
+      // Get handles from visual or params (backward compatibility)
+      const sourceHandle = normalizeHandleId(
+        (conn as any).visual?.sourceHandle || (conn as any).params?.sourceHandle as string | undefined
+      );
+      const targetHandle = normalizeHandleId(
+        (conn as any).visual?.targetHandle || (conn as any).params?.targetHandle as string | undefined
+      );
+      const points = (conn as any).visual?.points || (conn as any).params?.points as Array<{ x: number; y: number }> | undefined;
+      const label = conn.params.label as string | undefined;
+      const formula = conn.params.formula as string | undefined;
+      const formulaPosition = conn.params.formulaPosition as number | undefined;
+      const connectionType = (conn as any).type || 'resource'; // Default to resource for backward compatibility
 
-      // Use polyline type for all edges (allows adding points to any edge)
+      // Use polyline type for all connections (allows adding points)
       return {
-        id: edge.id,
+        id: conn.id,
         source: sourceNodeId,
         target: targetNodeId,
         type: 'polyline',
@@ -63,8 +71,9 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
           type: 'arrowclosed',
         },
         data: {
+          type: connectionType, // Store connection type in data
           params: {
-            ...edge.params,
+            ...conn.params,
             label: label || '',
             formula: formula || '',
             formulaPosition: formulaPosition ?? 0.5,
@@ -79,7 +88,7 @@ export function dslToXYFlow(dsl: GraphDSL): { nodes: Node[]; edges: Edge[] } {
 }
 
 /**
- * Convert XYFlow nodes and edges to DSL graph
+ * Convert XYFlow nodes and edges to DSL graph (edges -> connections)
  */
 export function xyFlowToDSL(
   nodes: Node[],
@@ -92,9 +101,11 @@ export function xyFlowToDSL(
       id: node.id,
       type: node.data.type as string,
       params: node.data.params as Record<string, unknown>,
-      position: node.position, // Save node position for visualization
+      visual: {
+        position: node.position, // Save node position in visual
+      },
     })),
-    edges: edges.map((edge) => {
+    connections: edges.map((edge) => {
       // Normalize handle IDs - remove -target suffix for storage
       const sourceHandle = normalizeHandleId(edge.sourceHandle);
       const targetHandle = normalizeHandleId(edge.targetHandle);
@@ -102,47 +113,56 @@ export function xyFlowToDSL(
       // Extract points from edge.data if present (for polyline edges)
       const points = edge.data?.points as Array<{ x: number; y: number }> | undefined;
       
-      // Build params object, always including handles and points (if present)
-      const edgeParams: Record<string, unknown> = {
+      // Get connection type from edge.data.type (default to "resource")
+      const connectionType = (edge.data as any)?.type || 'resource';
+      
+      // Build params object (semantic properties only, not visual)
+      const connectionParams: Record<string, unknown> = {
         ...(edge.data?.params as Record<string, unknown> | undefined),
       };
       
-      // Always save handles (even if undefined, they're part of visualization state)
-      if (sourceHandle !== undefined) {
-        edgeParams.sourceHandle = sourceHandle;
-      }
-      if (targetHandle !== undefined) {
-        edgeParams.targetHandle = targetHandle;
-      }
+      // Remove visual properties from params (they go to visual)
+      delete connectionParams.sourceHandle;
+      delete connectionParams.targetHandle;
+      delete connectionParams.points;
       
-      // Persist points in edge params for DSL round-trip
-      if (points && points.length > 0) {
-        edgeParams.points = points;
-      }
-      
-      // Persist label and formula (visualization data)
-      const label = edgeParams.label as string | undefined;
-      const formula = edgeParams.formula as string | undefined;
-      const formulaPosition = edgeParams.formulaPosition as number | undefined;
+      // Persist label and formula (semantic properties that might be in params)
+      const label = connectionParams.label as string | undefined;
+      const formula = connectionParams.formula as string | undefined;
+      const formulaPosition = connectionParams.formulaPosition as number | undefined;
       
       // Only save label if not empty
       if (label) {
-        edgeParams.label = label;
+        connectionParams.label = label;
       }
       
       // Only save formula and its position if formula exists
       if (formula) {
-        edgeParams.formula = formula;
+        connectionParams.formula = formula;
         if (formulaPosition !== undefined) {
-          edgeParams.formulaPosition = formulaPosition;
+          connectionParams.formulaPosition = formulaPosition;
         }
+      }
+      
+      // Build visual object
+      const visual: any = {};
+      if (sourceHandle !== undefined) {
+        visual.sourceHandle = sourceHandle;
+      }
+      if (targetHandle !== undefined) {
+        visual.targetHandle = targetHandle;
+      }
+      if (points && points.length > 0) {
+        visual.points = points;
       }
       
       return {
         id: edge.id,
+        type: connectionType,
         from: edge.source,
         to: edge.target,
-        params: edgeParams,
+        params: connectionParams,
+        visual: Object.keys(visual).length > 0 ? visual : undefined,
       };
     }),
   };

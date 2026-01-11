@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { NodeTypeDefinition, ValidationIssue } from '@ygrecon/core';
-import type { GraphDSL } from '@ygrecon/dsl';
+import type { NodeTypeDefinition } from '@ygrecon/core';
 
 export const converter: NodeTypeDefinition = {
   typeId: 'core.Converter',
@@ -12,15 +11,17 @@ export const converter: NodeTypeDefinition = {
     inputResourceId: z.string(),
     outputResourceId: z.string(),
     conversionRate: z.number(),
-    activationMode: z.enum(['automatic', 'interactive', 'onStart', 'onReceive']).optional(),
+    conversion: z.enum(['single', 'batch']).optional(),
+    activation: z.enum(['automatic', 'passive', 'interactive']).optional(),
+    activationMode: z.enum(['pull-any']).optional(),
+    resourceColor: z.string().optional(),
   }),
   ports: {
     inputs: ['input'],
     outputs: ['output'],
   },
-  validateConnection: (): ValidationIssue[] => {
+  validateConnection: (): Array<{ code: string; message: string; nodeId?: string; connectionId?: string }> => {
     // Converter can connect to/from any node type (no restrictions)
     return [];
   },
 };
-

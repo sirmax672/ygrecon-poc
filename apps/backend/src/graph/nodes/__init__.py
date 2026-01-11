@@ -8,6 +8,7 @@ from .gate_node import GateNode
 from .converter_node import ConverterNode
 from .trader_node import TraderNode
 from .random_split_node import RandomSplitNode
+from .register_node import RegisterNode
 from ...shared.dsl_schema import NodeDef
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "ConverterNode",
     "TraderNode",
     "RandomSplitNode",
+    "RegisterNode",
     "create_node_instance",
 ]
 
@@ -49,7 +51,8 @@ def create_node_instance(node_def: NodeDef) -> NodeInstance:
         return TraderNode(node_def)
     elif node_type == "core.RandomSplit":
         return RandomSplitNode(node_def)
+    elif node_type == "core.Register":
+        return RegisterNode(node_def)
     else:
         # Unknown node type - return base NodeInstance
         return NodeInstance(node_def)
-

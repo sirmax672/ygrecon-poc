@@ -4,6 +4,8 @@ import App from './App';
 import './index.css';
 // Import node types to register them
 import '@ygrecon/node-types-core';
+// Import connection types to register them
+import '@ygrecon/connection-types-core';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

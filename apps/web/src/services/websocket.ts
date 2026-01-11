@@ -57,13 +57,15 @@ interface DeleteNodeRequest {
 }
 
 interface CreateEdgeRequest {
-  type: 'create_edge';
+  type: 'create_edge' | 'create_connection'; // Support both names
   payload: {
-    edge_id: string;
+    edge_id?: string; // Keep for backward compatibility
+    connection_id?: string; // New name
     from_node_id: string;
     to_node_id: string;
     source_handle?: string;
     target_handle?: string;
+    connection_type?: string; // "resource", "state", "trigger"
     params?: Record<string, unknown>;
   };
 }
@@ -130,13 +132,15 @@ interface NodeCreatedResponse {
 interface EdgeCreatedResponse {
   type: 'edge_created';
   payload: {
-    edge_id: string;
+    edge_id?: string; // Keep for backward compatibility
+    connection_id?: string; // New name
     valid: boolean;
     issues?: Array<{
       code: string;
       message: string;
       node_id?: string;
-      edge_id?: string;
+      edge_id?: string; // Keep for backward compatibility
+      connection_id?: string; // New name
     }>;
   };
 }
@@ -414,17 +418,20 @@ export class WebSocketClient {
     toNodeId: string,
     sourceHandle?: string,
     targetHandle?: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
+    connectionType?: string // "resource", "state", "trigger"
   ): Promise<EdgeCreatedResponse['payload']> {
     const response = await this.sendMessage(
       {
-        type: 'create_edge',
+        type: 'create_edge', // Keep for backward compatibility
         payload: {
-          edge_id: edgeId,
+          edge_id: edgeId, // Keep for backward compatibility
+          connection_id: edgeId, // New name
           from_node_id: fromNodeId,
           to_node_id: toNodeId,
           source_handle: sourceHandle,
           target_handle: targetHandle,
+          connection_type: connectionType || 'resource', // Default to resource
           params,
         },
       },
@@ -439,12 +446,29 @@ export class WebSocketClient {
       throw new Error(`Unexpected response type: ${response.type}`);
     }
   }
+  
+  // Alias for createEdge with connection terminology (internal use)
+  async createConnection(
+    connectionId: string,
+    fromNodeId: string,
+    toNodeId: string,
+    connectionType: string, // "resource", "state", "trigger"
+    sourceHandle?: string,
+    targetHandle?: string,
+    params?: Record<string, unknown>
+  ): Promise<EdgeCreatedResponse['payload']> {
+    return this.createEdge(connectionId, fromNodeId, toNodeId, sourceHandle, targetHandle, params, connectionType);
+  }
 
   async updateEdge(edgeId: string, params: Record<string, unknown>): Promise<void> {
     const response = await this.sendMessage(
       {
-        type: 'update_edge',
-        payload: { edge_id: edgeId, params },
+        type: 'update_edge', // Keep for backward compatibility
+        payload: { 
+          edge_id: edgeId, // Keep for backward compatibility
+          connection_id: edgeId, // New name
+          params 
+        },
       },
       'edge_updated' // Expected response type
     );
@@ -453,12 +477,20 @@ export class WebSocketClient {
       throw new Error(response.payload.message);
     }
   }
+  
+  // Alias for updateEdge with connection terminology (internal use)
+  async updateConnection(connectionId: string, params: Record<string, unknown>): Promise<void> {
+    return this.updateEdge(connectionId, params);
+  }
 
   async deleteEdge(edgeId: string): Promise<void> {
     const response = await this.sendMessage(
       {
-        type: 'delete_edge',
-        payload: { edge_id: edgeId },
+        type: 'delete_edge', // Keep for backward compatibility
+        payload: { 
+          edge_id: edgeId, // Keep for backward compatibility
+          connection_id: edgeId, // New name
+        },
       },
       'edge_deleted' // Expected response type
     );
@@ -466,6 +498,16 @@ export class WebSocketClient {
     if (response.type === 'error') {
       throw new Error(response.payload.message);
     }
+  }
+  
+  // Alias for deleteEdge with connection terminology (internal use)
+  async deleteConnection(connectionId: string): Promise<void> {
+    return this.deleteEdge(connectionId);
+  }
+  
+  // Alias for deleteEdge with connection terminology (internal use)
+  async deleteConnection(connectionId: string): Promise<void> {
+    return this.deleteEdge(connectionId);
   }
 
   async getGraph(): Promise<GraphStateResponse['payload']> {

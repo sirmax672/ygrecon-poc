@@ -7,7 +7,7 @@ import type { Node, Edge } from '@xyflow/react';
  */
 interface EditorSnapshot {
   nodes: Node[];
-  edges: Edge[];
+  edges: Edge[]; // ReactFlow Edge type (internal alias for connections)
   dsl: GraphDSL;
 }
 
@@ -17,7 +17,7 @@ interface EditorSnapshot {
 interface EditorStore {
   // Current state
   nodes: Node[];
-  edges: Edge[];
+  edges: Edge[]; // ReactFlow Edge type (internal alias for connections)
   dsl: GraphDSL | null;
   validationErrors: string[];
   
@@ -27,7 +27,7 @@ interface EditorStore {
   
   // Actions
   setNodes: (nodes: Node[], saveHistory?: boolean) => void;
-  setEdges: (edges: Edge[], saveHistory?: boolean) => void;
+  setEdges: (edges: Edge[], saveHistory?: boolean) => void; // ReactFlow Edge type
   setDSL: (dsl: GraphDSL, saveHistory?: boolean) => void;
   setValidationErrors: (errors: string[]) => void;
   
@@ -43,11 +43,19 @@ interface EditorStore {
   
   // Selection
   selectedNodeId: string | null;
-  selectedEdgeId: string | null;
+  selectedEdgeId: string | null; // Keep for ReactFlow compatibility (maps to connectionId)
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
   
-  // Edge creation mode
+  // Connection creation mode
+  connectionCreationMode: boolean; // Renamed from edgeCreationMode
+  connectionCreationSourceNodeId: string | null; // Renamed from edgeCreationSourceNodeId
+  selectedConnectionType: string | null; // Type of connection to create: "resource", "state", "trigger"
+  setConnectionCreationMode: (enabled: boolean) => void;
+  setConnectionCreationSourceNodeId: (nodeId: string | null) => void;
+  setSelectedConnectionType: (type: string | null) => void;
+  
+  // Backward compatibility aliases
   edgeCreationMode: boolean;
   edgeCreationSourceNodeId: string | null;
   setEdgeCreationMode: (enabled: boolean) => void;
@@ -64,18 +72,22 @@ const createInitialDSL = (): GraphDSL => ({
   },
   resources: [],
   nodes: [],
-  edges: [],
+  connections: [], // Renamed from edges
 });
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   nodes: [],
-  edges: [],
+  edges: [], // ReactFlow Edge type (internal alias for connections)
   dsl: createInitialDSL(),
   validationErrors: [],
   history: [],
   historyIndex: -1,
   selectedNodeId: null,
-  selectedEdgeId: null,
+  selectedEdgeId: null, // Keep for ReactFlow compatibility
+  connectionCreationMode: false,
+  connectionCreationSourceNodeId: null,
+  selectedConnectionType: null, // Type of connection to create
+  // Backward compatibility aliases
   edgeCreationMode: false,
   edgeCreationSourceNodeId: null,
   
@@ -174,15 +186,34 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set({ selectedEdgeId: id, selectedNodeId: null });
   },
   
-  setEdgeCreationMode: (enabled) => {
+  setConnectionCreationMode: (enabled) => {
     set({ 
-      edgeCreationMode: enabled,
-      edgeCreationSourceNodeId: null, // Reset source when toggling
+      connectionCreationMode: enabled,
+      edgeCreationMode: enabled, // Backward compatibility alias
+      connectionCreationSourceNodeId: null, // Reset source when toggling
+      edgeCreationSourceNodeId: null, // Backward compatibility alias
+      selectedConnectionType: null, // Reset type when toggling
     });
   },
   
+  setConnectionCreationSourceNodeId: (nodeId) => {
+    set({ 
+      connectionCreationSourceNodeId: nodeId,
+      edgeCreationSourceNodeId: nodeId, // Backward compatibility alias
+    });
+  },
+  
+  setSelectedConnectionType: (type) => {
+    set({ selectedConnectionType: type });
+  },
+  
+  // Backward compatibility aliases
+  setEdgeCreationMode: (enabled) => {
+    get().setConnectionCreationMode(enabled);
+  },
+  
   setEdgeCreationSourceNodeId: (nodeId) => {
-    set({ edgeCreationSourceNodeId: nodeId });
+    get().setConnectionCreationSourceNodeId(nodeId);
   },
 }));
 

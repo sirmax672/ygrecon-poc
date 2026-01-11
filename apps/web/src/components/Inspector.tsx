@@ -1,16 +1,16 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import { nodeTypeRegistry } from '@ygrecon/core';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { connectionTypeRegistry } from '@ygrecon/connection-types-core';
 import { getWebSocketClient } from '../services/websocket';
 
-function getSchemaFieldType(schema: unknown): 'string' | 'number' | 'boolean' | 'enum' | 'unknown' {
-  // This is a simplified type checker for Zod schemas
-  // In a real implementation, you'd use zod's introspection API
-  const schemaObj = schema as { _def?: { typeName?: string; values?: unknown[] } };
+function getSchemaFieldType(schema: unknown): 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'unknown' {
+  const schemaObj = schema as { _def?: { typeName?: string; values?: unknown[]; innerType?: unknown } };
   if (schemaObj._def?.typeName === 'ZodString') return 'string';
   if (schemaObj._def?.typeName === 'ZodNumber') return 'number';
   if (schemaObj._def?.typeName === 'ZodBoolean') return 'boolean';
   if (schemaObj._def?.typeName === 'ZodEnum') return 'enum';
+  if (schemaObj._def?.typeName === 'ZodArray') return 'array';
   if (schemaObj._def?.typeName === 'ZodOptional') {
     const optionalDef = schemaObj._def as { innerType?: unknown };
     return getSchemaFieldType(optionalDef.innerType);
@@ -38,12 +38,32 @@ function ParamField({
 }) {
   const fieldType = getSchemaFieldType(schema);
   const enumValues = fieldType === 'enum' ? getEnumValues(schema) : [];
+  const [arrayError, setArrayError] = useState<string | null>(null);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (fieldType === 'number') {
       onChange(Number(e.target.value));
     } else if (fieldType === 'boolean') {
       onChange(e.target.value === 'true');
+    } else if (fieldType === 'array') {
+      // Try to parse JSON array
+      const textValue = e.target.value.trim();
+      if (textValue === '') {
+        onChange(undefined);
+        setArrayError(null);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(textValue);
+        if (Array.isArray(parsed)) {
+          onChange(parsed);
+          setArrayError(null);
+        } else {
+          setArrayError('Value must be a JSON array');
+        }
+      } catch (err) {
+        setArrayError('Invalid JSON array format');
+      }
     } else {
       onChange(e.target.value);
     }
@@ -62,10 +82,10 @@ function ParamField({
           {name}
         </label>
         <select
-          value={String(value ?? '')}
+          value={value === undefined ? '' : String(value)}
           onChange={handleChange}
           onBlur={handleBlur}
-          style={{ width: '100%', padding: '4px' }}
+          style={{ width: '100%', padding: '4px', fontSize: '12px' }}
         >
           <option value="">(not set)</option>
           <option value="true">true</option>
@@ -82,10 +102,10 @@ function ParamField({
           {name}
         </label>
         <select
-          value={String(value ?? '')}
+          value={value === undefined ? '' : String(value)}
           onChange={handleChange}
           onBlur={handleBlur}
-          style={{ width: '100%', padding: '4px' }}
+          style={{ width: '100%', padding: '4px', fontSize: '12px' }}
         >
           <option value="">(not set)</option>
           {enumValues.map((val) => (
@@ -98,6 +118,34 @@ function ParamField({
     );
   }
   
+  if (fieldType === 'array') {
+    return (
+      <div style={{ marginBottom: '12px' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+          {name}
+        </label>
+        <input
+          type="text"
+          value={value === undefined ? '' : JSON.stringify(value)}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder="JSON array (e.g., [1, 2, 3])"
+          style={{ 
+            width: '100%', 
+            padding: '4px', 
+            fontSize: '12px',
+            border: arrayError ? '1px solid red' : '1px solid #ddd',
+          }}
+        />
+        {arrayError && (
+          <div style={{ fontSize: '11px', color: 'red', marginTop: '4px' }}>
+            {arrayError}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
   return (
     <div style={{ marginBottom: '12px' }}>
       <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>
@@ -105,11 +153,11 @@ function ParamField({
       </label>
       <input
         type={fieldType === 'number' ? 'number' : 'text'}
-        value={String(value ?? '')}
+        value={value === undefined ? '' : String(value)}
         onChange={handleChange}
         onBlur={handleBlur}
-        style={{ width: '100%', padding: '4px' }}
         placeholder={fieldType === 'number' ? '0' : ''}
+        style={{ width: '100%', padding: '4px', fontSize: '12px' }}
       />
     </div>
   );
@@ -118,9 +166,9 @@ function ParamField({
 export function Inspector() {
   const {
     selectedNodeId,
-    selectedEdgeId,
+    selectedEdgeId, // Keep for ReactFlow compatibility (maps to connectionId)
     nodes,
-    edges,
+    edges, // ReactFlow Edge type (internal alias for connections)
     setNodes,
     setEdges,
     dsl,
@@ -133,6 +181,10 @@ export function Inspector() {
   const nodeType = selectedNode
     ? nodeTypeRegistry.get(selectedNode.data.type as string)
     : null;
+  
+  // Get connection type from edge.data.type (default to "resource" for backward compatibility)
+  const connectionType = selectedEdge ? ((selectedEdge.data as any)?.type || 'resource') : null;
+  const connectionTypeDef = connectionType ? connectionTypeRegistry.get(connectionType) : null;
   
   const [localParams, setLocalParams] = useState<Record<string, unknown>>({});
   
@@ -164,14 +216,13 @@ export function Inspector() {
   
   // Function to send params to server immediately (called on blur)
   const sendParamsToServer = useCallback(async () => {
-    // Use ref to get current params (always up-to-date)
     const currentParams = currentParamsRef.current;
     
     if (!currentParams || Object.keys(currentParams).length === 0) {
       return;
     }
     
-    // Also clear any pending debounced update since we're sending immediately
+    // Clear any pending debounced update since we're sending immediately
     if (paramUpdateTimerRef.current) {
       clearTimeout(paramUpdateTimerRef.current);
       paramUpdateTimerRef.current = null;
@@ -183,21 +234,17 @@ export function Inspector() {
       if (selectedNode && selectedNodeId) {
         await wsClient.updateNode(selectedNodeId, currentParams);
       } else if (selectedEdge && selectedEdgeId) {
-        await wsClient.updateEdge(selectedEdgeId, currentParams);
+        await wsClient.updateConnection(selectedEdgeId, currentParams);
       }
     } catch (error) {
       console.error('Failed to update params on server:', error);
-      // Optionally: show error notification to user or revert local changes
     }
   }, [selectedNode, selectedEdge, selectedNodeId, selectedEdgeId]);
 
   const handleParamChange = useCallback(
     (key: string, value: unknown) => {
-      // Use functional update to get current localParams
       setLocalParams((prevParams) => {
         const newParams = { ...prevParams, [key]: value };
-        
-        // Update ref with current params for onBlur handler
         currentParamsRef.current = newParams;
         
         // Update local state immediately for responsive UI
@@ -231,21 +278,19 @@ export function Inspector() {
           if (dsl) {
             const newDSL = {
               ...dsl,
-              edges: dsl.edges.map((e) =>
-                e.id === selectedEdgeId ? { ...e, params: newParams } : e
+              connections: (dsl.connections || []).map((c) =>
+                c.id === selectedEdgeId ? { ...c, params: newParams } : c
               ),
             };
             setDSL(newDSL);
           }
         }
         
-        // Debounce server update to avoid too many requests while typing
-        // Clear existing timer
+        // Debounce server update
         if (paramUpdateTimerRef.current) {
           clearTimeout(paramUpdateTimerRef.current);
         }
         
-        // Set new timer to send update after 300ms of no changes
         paramUpdateTimerRef.current = setTimeout(async () => {
           const wsClient = getWebSocketClient();
           
@@ -253,7 +298,7 @@ export function Inspector() {
             if (selectedNode && selectedNodeId) {
               await wsClient.updateNode(selectedNodeId, newParams);
             } else if (selectedEdge && selectedEdgeId) {
-              await wsClient.updateEdge(selectedEdgeId, newParams);
+              await wsClient.updateConnection(selectedEdgeId, newParams);
             }
           } catch (error) {
             console.error('Failed to update params on server:', error);
@@ -290,7 +335,7 @@ export function Inspector() {
       >
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
         <p style={{ color: '#666', fontSize: '14px' }}>
-          Select a node or edge to edit its parameters.
+          Select a node or connection to edit its parameters.
         </p>
       </div>
     );
@@ -331,10 +376,9 @@ export function Inspector() {
     );
   }
   
-  if (selectedEdge) {
-    const edgeParams = (selectedEdge.data?.params as Record<string, unknown>) || {};
-    const edgeLabel = (edgeParams.label as string) || '';
-    const edgeFormula = (edgeParams.formula as string) || '';
+  if (selectedEdge && connectionTypeDef) {
+    const schema = connectionTypeDef.paramsSchema as { shape?: Record<string, unknown> };
+    const shape = schema.shape || {};
     
     return (
       <div
@@ -346,7 +390,7 @@ export function Inspector() {
       >
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
         <div style={{ marginBottom: '16px' }}>
-          <strong>Edge</strong>
+          <strong>{connectionTypeDef.display.label}</strong>
           <div style={{ fontSize: '12px', color: '#666' }}>{selectedEdge.id}</div>
         </div>
         
@@ -358,58 +402,24 @@ export function Inspector() {
             <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>
               To: {selectedEdge.target}
             </label>
-          </div>
-          
-          {/* Label field */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 'bold' }}>
-              Label
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Type: {connectionType}
             </label>
-            <input
-              type="text"
-              value={edgeLabel}
-              onChange={(e) => {
-                handleParamChange('label', e.target.value);
-              }}
-              onBlur={sendParamsToServer}
-              placeholder="Edge label (empty to hide)"
-              style={{ width: '100%', padding: '4px', fontSize: '12px' }}
-            />
           </div>
           
-          {/* Formula field */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 'bold' }}>
-              Formula
-            </label>
-            <input
-              type="text"
-              value={edgeFormula}
-              onChange={(e) => {
-                handleParamChange('formula', e.target.value);
-              }}
+          <h4 style={{ fontSize: '14px', marginBottom: '12px', marginTop: '16px' }}>
+            {connectionTypeDef.display.label} Parameters
+          </h4>
+          {Object.entries(shape).map(([key, fieldSchema]) => (
+            <ParamField
+              key={key}
+              name={key}
+              schema={fieldSchema}
+              value={localParams[key]}
+              onChange={(value) => handleParamChange(key, value)}
               onBlur={sendParamsToServer}
-              placeholder="Formula expression (empty to hide)"
-              style={{ width: '100%', padding: '4px', fontSize: '12px' }}
             />
-            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-              Drag the formula block along the edge to reposition it
-            </div>
-          </div>
-          
-          <h4 style={{ fontSize: '14px', marginBottom: '12px', marginTop: '16px' }}>Other Parameters</h4>
-          {Object.entries(localParams)
-            .filter(([key]) => key !== 'label' && key !== 'formula' && key !== 'formulaPosition')
-            .map(([key, value]) => (
-              <ParamField
-                key={key}
-                name={key}
-                schema={{ _def: { typeName: 'ZodString' } }}
-                value={value}
-                onChange={(val) => handleParamChange(key, val)}
-                onBlur={sendParamsToServer}
-              />
-            ))}
+          ))}
         </div>
       </div>
     );
@@ -428,8 +438,7 @@ export function Inspector() {
         fontSize: '14px',
       }}
     >
-      Select a node or edge to inspect
+      Select a node or connection to inspect
     </div>
   );
 }
-

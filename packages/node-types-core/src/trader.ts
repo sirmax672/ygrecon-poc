@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { NodeTypeDefinition, ValidationIssue } from '@ygrecon/core';
-import type { GraphDSL } from '@ygrecon/dsl';
+import type { NodeTypeDefinition } from '@ygrecon/core';
 
 export const trader: NodeTypeDefinition = {
   typeId: 'core.Trader',
@@ -13,15 +12,15 @@ export const trader: NodeTypeDefinition = {
     offerAmount: z.number(),
     requestResourceId: z.string(),
     requestAmount: z.number(),
-    activationMode: z.enum(['automatic', 'interactive', 'onStart', 'onReceive']).optional(),
+    trade: z.enum(['single', 'batch']).optional(),
+    activation: z.enum(['automatic', 'passive', 'interactive']).optional(),
   }),
   ports: {
     inputs: ['input'],
     outputs: ['output'],
   },
-  validateConnection: (): ValidationIssue[] => {
+  validateConnection: (): Array<{ code: string; message: string; nodeId?: string; connectionId?: string }> => {
     // Trader can connect to/from any node type (no restrictions)
     return [];
   },
 };
-

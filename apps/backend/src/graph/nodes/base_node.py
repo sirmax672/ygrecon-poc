@@ -1,23 +1,41 @@
 """Base node instance class for validation."""
 
 from typing import Optional, TYPE_CHECKING
-from ...shared.dsl_schema import NodeDef, ValidationIssue
+from ...shared.dsl_schema import NodeDef, ValidationIssue, NodeVisual
 
 if TYPE_CHECKING:
     from ..graph import Graph
 
 
 class NodeInstance:
-    """Base class for node instances in the graph with validation capabilities."""
+    """Base class for node instances with direct attributes and validation capabilities."""
+
+    # Common attributes for all nodes
+    id: str
+    type: str
+    visual: NodeVisual
 
     def __init__(self, node_def: NodeDef):
         """
-        Initialize node instance.
+        Initialize node instance from NodeDef.
+        Subclasses should extract params into typed attributes.
 
         Args:
             node_def: The node definition
         """
-        self.node_def = node_def
+        self.id = node_def.id
+        self.type = node_def.type
+        self.visual = node_def.visual or NodeVisual()
+    
+    def to_node_def(self) -> NodeDef:
+        """
+        Convert instance back to NodeDef for serialization.
+        Subclasses must override to populate params dict from attributes.
+        
+        Returns:
+            NodeDef object for DSL serialization
+        """
+        raise NotImplementedError("Subclasses must implement to_node_def()")
 
     def validate_connection(
         self,
@@ -51,14 +69,14 @@ class NodeInstance:
         issues: list[ValidationIssue] = []
 
         # Check outgoing connection if this node is the source
-        if from_node_id == self.node_def.id:
+        if from_node_id == self.id:
             outgoing_issues = self.validate_outgoing_connection(
                 to_node_id, source_handle, target_handle, edge_id
             )
             issues.extend(outgoing_issues)
 
         # Check incoming connection if this node is the target
-        if to_node_id == self.node_def.id:
+        if to_node_id == self.id:
             incoming_issues = self.validate_incoming_connection(
                 from_node_id, source_handle, target_handle, edge_id
             )

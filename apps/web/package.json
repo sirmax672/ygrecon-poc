@@ -14,6 +14,7 @@
     "@ygrecon/core": "workspace:^",
     "@ygrecon/dsl": "workspace:^",
     "@ygrecon/node-types-core": "workspace:^",
+    "@ygrecon/connection-types-core": "workspace:^",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^5.0.9"

@@ -116,33 +116,44 @@ export function CustomNode({ id, data, selected }: NodeProps) {
   const nodeType = nodeTypeRegistry.get(data.type as string);
   const { 
     setSelectedNodeId,
-    edgeCreationMode,
-    edgeCreationSourceNodeId,
-    setEdgeCreationSourceNodeId,
-    setEdgeCreationMode,
+    connectionCreationMode,
+    connectionCreationSourceNodeId,
+    setConnectionCreationSourceNodeId,
+    setConnectionCreationMode,
+    selectedConnectionType,
     edges,
     setEdges,
     dsl,
     setDSL,
     nodes,
     setValidationErrors,
+    // Backward compatibility aliases
+    edgeCreationMode,
+    edgeCreationSourceNodeId,
+    setEdgeCreationSourceNodeId,
+    setEdgeCreationMode,
   } = useEditorStore();
   
   const handleClick = () => {
-    if (edgeCreationMode) {
-      // Edge creation mode: select source, then target
-      if (!edgeCreationSourceNodeId) {
+    if (connectionCreationMode) {
+      // Connection creation mode: select source, then target
+      if (!selectedConnectionType) {
+        // Connection type not selected, do nothing (show warning in palette)
+        return;
+      }
+      
+      if (!connectionCreationSourceNodeId) {
         // First click: set as source
-        setEdgeCreationSourceNodeId(id);
-      } else if (edgeCreationSourceNodeId === id) {
+        setConnectionCreationSourceNodeId(id);
+      } else if (connectionCreationSourceNodeId === id) {
         // Clicked same node: cancel
-        setEdgeCreationSourceNodeId(null);
+        setConnectionCreationSourceNodeId(null);
       } else {
-        // Second click: create edge
-        createEdge(edgeCreationSourceNodeId, id);
-        // Reset edge creation mode
-        setEdgeCreationMode(false);
-        setEdgeCreationSourceNodeId(null);
+        // Second click: create connection
+        createConnection(connectionCreationSourceNodeId, id, selectedConnectionType);
+        // Reset connection creation mode
+        setConnectionCreationMode(false);
+        setConnectionCreationSourceNodeId(null);
       }
     } else {
       // Normal mode: select node
@@ -150,7 +161,7 @@ export function CustomNode({ id, data, selected }: NodeProps) {
     }
   };
   
-  const createEdge = (sourceId: string, targetId: string) => {
+  const createConnection = (sourceId: string, targetId: string, connectionType: string) => {
     if (!dsl) return;
     
     // Get node positions
@@ -165,17 +176,17 @@ export function CustomNode({ id, data, selected }: NodeProps) {
       { id: targetId, position: targetNode.position }
     );
     
-    // Generate unique edge ID
+    // Generate unique connection ID
     let counter = 1;
-    let edgeId = `edge_${counter}`;
-    while (edges.some((e) => e.id === edgeId)) {
+    let connectionId = `connection_${counter}`;
+    while (edges.some((e) => e.id === connectionId)) {
       counter++;
-      edgeId = `edge_${counter}`;
+      connectionId = `connection_${counter}`;
     }
     
-    // Create temporary edge for validation
+    // Create temporary edge for ReactFlow (connections -> edges for ReactFlow)
     const tempEdge: Edge = {
-      id: edgeId,
+      id: connectionId,
       source: sourceId,
       target: targetId,
       type: 'polyline',
@@ -185,26 +196,28 @@ export function CustomNode({ id, data, selected }: NodeProps) {
         type: 'arrowclosed',
       },
       data: {
+        type: connectionType, // Store connection type in edge.data
         params: {},
         points: [],
       },
     };
     
-    // Create edge via WebSocket (backend validates and stores)
+    // Create connection via WebSocket (backend validates and stores)
     const wsClient = getWebSocketClient();
     const sourceHandleNormalized = sourceHandle?.replace(/-target$/, '');
     const targetHandleNormalized = targetHandle?.replace(/-target$/, '');
     
-    wsClient.createEdge(
-      edgeId,
+    wsClient.createConnection(
+      connectionId,
       sourceId,
       targetId,
+      connectionType, // Pass connection type
       sourceHandleNormalized,
       targetHandleNormalized,
       {}
     ).then((result) => {
       if (!result.valid && result.issues && result.issues.length > 0) {
-        // Show validation errors and prevent edge creation
+        // Show validation errors and prevent connection creation
         const errorMessages = result.issues.map(
           (issue) => `${issue.code}: ${issue.message}`
         );
@@ -213,7 +226,7 @@ export function CustomNode({ id, data, selected }: NodeProps) {
         // Clear validation errors if connection is valid
         setValidationErrors([]);
         
-        // Connection is valid, create the edge locally
+        // Connection is valid, create the edge locally (ReactFlow Edge)
         const tempEdges = [...edges, tempEdge];
         setEdges(tempEdges);
         
@@ -222,7 +235,7 @@ export function CustomNode({ id, data, selected }: NodeProps) {
         setDSL(newDSL);
       }
     }).catch((error) => {
-      console.error('Failed to create edge:', error);
+      console.error('Failed to create connection:', error);
       // On error, allow connection (fail open for now)
       const tempEdges = [...edges, tempEdge];
       setEdges(tempEdges);
@@ -240,14 +253,14 @@ export function CustomNode({ id, data, selected }: NodeProps) {
       style={{
         padding: '10px',
         borderRadius: '8px',
-        border: edgeCreationSourceNodeId === id 
+        border: connectionCreationSourceNodeId === id 
           ? '2px solid #28a745' 
           : selected 
             ? '2px solid #007bff' 
             : '2px solid #ccc',
-        backgroundColor: edgeCreationSourceNodeId === id ? '#d4edda' : '#fff',
+        backgroundColor: connectionCreationSourceNodeId === id ? '#d4edda' : '#fff',
         minWidth: '120px',
-        cursor: edgeCreationMode ? 'crosshair' : 'pointer',
+        cursor: connectionCreationMode ? 'crosshair' : 'pointer',
       }}
     >
       <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>

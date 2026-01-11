@@ -2,6 +2,32 @@ import { z } from 'zod';
 import type { GraphDSL } from './types.js';
 
 /**
+ * Zod schema for NodeVisual
+ */
+export const nodeVisualSchema = z.object({
+  position: z.object({
+    x: z.number(),
+    y: z.number(),
+  }).optional(),
+  color: z.string().optional(),
+  shape: z.string().optional(),
+});
+
+/**
+ * Zod schema for ConnectionVisual
+ */
+export const connectionVisualSchema = z.object({
+  points: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+  })).optional(),
+  color: z.string().optional(),
+  style: z.string().optional(),
+  sourceHandle: z.string().optional(),
+  targetHandle: z.string().optional(),
+});
+
+/**
  * Zod schema for DSL v0.2
  */
 export const graphDSLSchemaV0_2 = z.object({
@@ -16,6 +42,10 @@ export const graphDSLSchemaV0_2 = z.object({
     z.object({
       id: z.string(),
       label: z.string(),
+      description: z.string().optional(),
+      default: z.boolean().optional(),
+      active: z.boolean().optional(),
+      content: z.string().optional(), // SVG icon/content
     })
   ),
   nodes: z.array(
@@ -23,20 +53,29 @@ export const graphDSLSchemaV0_2 = z.object({
       id: z.string(),
       type: z.string(),
       params: z.record(z.unknown()),
-      position: z.object({
-        x: z.number(),
-        y: z.number(),
-      }).optional(),
+      visual: nodeVisualSchema.optional(),
     })
   ),
+  connections: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string(), // "resource", "state", "trigger"
+      from: z.string(),
+      to: z.string(),
+      params: z.record(z.unknown()),
+      visual: connectionVisualSchema.optional(),
+    })
+  ),
+  // Keep edges for backward compatibility when reading
   edges: z.array(
     z.object({
       id: z.string(),
       from: z.string(),
       to: z.string(),
       params: z.record(z.unknown()),
+      visual: connectionVisualSchema.optional(),
     })
-  ),
+  ).optional(),
 });
 
 /**
@@ -45,5 +84,3 @@ export const graphDSLSchemaV0_2 = z.object({
 export function isGraphDSLV0_2(value: unknown): value is GraphDSL {
   return graphDSLSchemaV0_2.safeParse(value).success;
 }
-
-

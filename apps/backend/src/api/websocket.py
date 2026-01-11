@@ -3,10 +3,11 @@
 import json
 from typing import Dict, Any, Optional
 from fastapi import WebSocket, WebSocketDisconnect
-from ..shared.dsl_schema import GraphDSL, ValidationIssue, NodeDef, EdgeDef, NodePosition
+from ..shared.dsl_schema import GraphDSL, ValidationIssue, NodeDef, ConnectionDef, NodePosition, NodeVisual, ConnectionVisual
 from ..validation.dsl_validator import validate_dsl_structure
 from ..graph.nodes import create_node_instance
-from ..graph.edge_instance import EdgeInstance, normalize_handle_id
+from ..graph.connection_instance import ConnectionInstance, normalize_handle_id
+from ..graph.connections import create_connection_instance
 from .session import create_session, get_session, delete_session
 
 
@@ -156,7 +157,7 @@ async def handle_create_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Check if node already exists
-    if any(n.node_def.id == node_id for n in session.graph.nodes):
+    if any(n.id == node_id for n in session.graph.nodes):
         return {
             "type": "node_created",
             "payload": {
@@ -170,12 +171,16 @@ async def handle_create_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Create node definition
+    # Create node definition with visual position
+    visual = NodeVisual()
+    if position:
+        visual.position = NodePosition(**position)
+    
     node_def = NodeDef(
         id=node_id,
         type=node_type,
         params=params,
-        position=NodePosition(**position) if position else None
+        visual=visual
     )
 
     # Create node instance and add to graph
@@ -207,7 +212,7 @@ async def handle_update_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Find node instance
-    node_instance = next((n for n in session.graph.nodes if n.node_def.id == node_id), None)
+    node_instance = next((n for n in session.graph.nodes if n.id == node_id), None)
     if not node_instance:
         return {
             "type": "error",
@@ -218,11 +223,27 @@ async def handle_update_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Update node definition
+    # Update node instance: recreate from updated NodeDef
+    node_def = node_instance.to_node_def()
+    
     if params is not None:
-        node_instance.node_def.params.update(params)
+        # Update params in NodeDef
+        node_def.params.update(params)
+    
     if position is not None:
-        node_instance.node_def.position = NodePosition(**position)
+        # Update visual position
+        if not node_def.visual:
+            node_def.visual = NodeVisual()
+        node_def.visual.position = NodePosition(**position)
+    
+    # Recreate node instance with updated params to apply validation
+    updated_node_instance = create_node_instance(node_def)
+    
+    # Replace in graph
+    session.graph.nodes = [
+        n if n.id != node_id else updated_node_instance
+        for n in session.graph.nodes
+    ]
 
     return {
         "type": "node_updated",
@@ -247,7 +268,7 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Find and remove node instance
-    node_instance = next((n for n in session.graph.nodes if n.node_def.id == node_id), None)
+    node_instance = next((n for n in session.graph.nodes if n.id == node_id), None)
     if not node_instance:
         return {
             "type": "error",
@@ -259,12 +280,12 @@ async def handle_delete_node(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Remove node instance
-    session.graph.nodes = [n for n in session.graph.nodes if n.node_def.id != node_id]
+    session.graph.nodes = [n for n in session.graph.nodes if n.id != node_id]
 
-    # Remove all edge instances connected to this node
-    session.graph.edges = [
-        e for e in session.graph.edges
-        if e.edge_def.from_ != node_id and e.edge_def.to != node_id
+    # Remove all connection instances connected to this node
+    session.graph.connections = [
+        c for c in session.graph.connections
+        if c.from_node_id != node_id and c.to_node_id != node_id
     ]
 
     return {
@@ -299,8 +320,8 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     # Check if nodes exist (as instances)
-    from_node_instance = next((n for n in session.graph.nodes if n.node_def.id == from_node_id), None)
-    to_node_instance = next((n for n in session.graph.nodes if n.node_def.id == to_node_id), None)
+    from_node_instance = next((n for n in session.graph.nodes if n.id == from_node_id), None)
+    to_node_instance = next((n for n in session.graph.nodes if n.id == to_node_id), None)
 
     if not from_node_instance:
         return {
@@ -332,38 +353,48 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             }
         }
 
-    # Check if edge already exists (as instance)
-    if any(e.edge_def.id == edge_id for e in session.graph.edges):
+    # Get connection type from payload (default to "resource" for backward compatibility)
+    connection_type = payload.get("connection_type", "resource")
+    
+    # Check if connection already exists (as instance)
+    if any(c.id == edge_id for c in session.graph.connections):
         return {
-            "type": "edge_created",
+            "type": "edge_created",  # Keep for backward compatibility
             "payload": {
-                "edge_id": edge_id,
+                "edge_id": edge_id,  # Keep for backward compatibility
+                "connection_id": edge_id,  # New name
                 "valid": False,
                 "issues": [{
-                    "code": "DUPLICATE_EDGE_ID",
-                    "message": f"Edge with ID {edge_id} already exists",
-                    "edge_id": edge_id
+                    "code": "DUPLICATE_CONNECTION_ID",
+                    "message": f"Connection with ID {edge_id} already exists",
+                    "edge_id": edge_id,  # Keep for backward compatibility
+                    "connection_id": edge_id,  # New name
                 }]
             }
         }
 
-    # Prepare edge params
-    params = {
-        "sourceHandle": source_handle,
-        "targetHandle": target_handle,
-        **edge_params
-    }
-
-    # Create edge definition
-    edge_def = EdgeDef(
-        id=edge_id,
-        from_=from_node_id,
-        to=to_node_id,
-        params=params
+    # Prepare connection params (handles go to visual, not params)
+    params = {**edge_params}
+    
+    # Create connection visual with handles
+    visual = ConnectionVisual(
+        source_handle=source_handle,
+        target_handle=target_handle,
+        points=[],
     )
 
-    # Create edge instance for validation
-    edge_instance = EdgeInstance(edge_def)
+    # Create connection definition
+    connection_def = ConnectionDef(
+        id=edge_id,
+        type=connection_type,
+        from_=from_node_id,
+        to=to_node_id,
+        params=params,
+        visual=visual,
+    )
+
+    # Create connection instance for validation
+    connection_instance = create_connection_instance(connection_def)
 
     # Normalize handles
     source_handle_norm = normalize_handle_id(source_handle)
@@ -372,8 +403,8 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
     # Collect all validation issues
     issues: list[ValidationIssue] = []
 
-    # 1. Validate edge structure (duplicates, reverse connections)
-    issues.extend(edge_instance.validate_structure(session.graph))
+    # 1. Validate connection structure (duplicates, reverse connections)
+    issues.extend(connection_instance.validate_structure(session.graph))
 
     # 2. Validate from node's connection (outgoing)
     if not issues:  # Only check node types if structure is valid
@@ -383,7 +414,7 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             to_node_id,
             source_handle_norm,
             target_handle_norm,
-            edge_id,
+            edge_id,  # Keep edge_id for backward compatibility
         )
         issues.extend(node_issues)
 
@@ -395,105 +426,130 @@ async def handle_create_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]
             to_node_id,
             source_handle_norm,
             target_handle_norm,
-            edge_id,
+            edge_id,  # Keep edge_id for backward compatibility
         )
         issues.extend(node_issues)
 
     if issues:
-        # Validation failed, don't add edge
+        # Validation failed, don't add connection
         return {
-            "type": "edge_created",
+            "type": "edge_created",  # Keep for backward compatibility
             "payload": {
-                "edge_id": edge_id,
+                "edge_id": edge_id,  # Keep for backward compatibility
+                "connection_id": edge_id,  # New name
                 "valid": False,
                 "issues": [issue.model_dump() for issue in issues]
             }
         }
 
-    # Validation passed, add edge instance to graph
-    session.graph.edges.append(edge_instance)
+    # Validation passed, add connection instance to graph
+    session.graph.connections.append(connection_instance)
 
     return {
-        "type": "edge_created",
+        "type": "edge_created",  # Keep for backward compatibility
         "payload": {
-            "edge_id": edge_id,
+            "edge_id": edge_id,  # Keep for backward compatibility
+            "connection_id": edge_id,  # New name
             "valid": True
         }
     }
 
 
 async def handle_update_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle update_edge message."""
-    edge_id = payload.get("edge_id")
+    """Handle update_edge message (renamed to update_connection internally)."""
+    edge_id = payload.get("edge_id") or payload.get("connection_id")  # Support both names
     params = payload.get("params")
+    position = payload.get("position")
 
     if not edge_id:
         return {
             "type": "error",
             "payload": {
-                "message": "edge_id is required",
-                "code": "MISSING_EDGE_ID"
+                "message": "edge_id or connection_id is required",
+                "code": "MISSING_CONNECTION_ID"
             }
         }
 
-    # Find edge instance
-    edge_instance = next((e for e in session.graph.edges if e.edge_def.id == edge_id), None)
-    if not edge_instance:
+    # Find connection instance
+    connection_instance = next((c for c in session.graph.connections if c.id == edge_id), None)
+    if not connection_instance:
         return {
             "type": "error",
             "payload": {
-                "message": f"Edge {edge_id} not found",
-                "code": "EDGE_NOT_FOUND",
-                "edge_id": edge_id
+                "message": f"Connection {edge_id} not found",
+                "code": "CONNECTION_NOT_FOUND",
+                "edge_id": edge_id,  # Keep for backward compatibility
+                "connection_id": edge_id,  # New name
             }
         }
 
-    # Update edge definition params (merge, not replace, to preserve existing params)
+    # Update connection: recreate from updated ConnectionDef
+    connection_def = connection_instance.to_connection_def()
+    
     if params is not None:
-        # Merge params to preserve existing values
-        edge_instance.edge_def.params = {**edge_instance.edge_def.params, **params}
+        # Update params in ConnectionDef
+        connection_def.params.update(params)
+    
+    if position is not None:
+        # Update visual position (for polyline points)
+        if not connection_def.visual:
+            connection_def.visual = ConnectionVisual()
+        # Position could be used for polyline points update
+        # For now, just ensure visual exists
+    
+    # Recreate connection instance with updated params to apply validation
+    updated_connection_instance = create_connection_instance(connection_def)
+    
+    # Replace in graph
+    session.graph.connections = [
+        c if c.id != edge_id else updated_connection_instance
+        for c in session.graph.connections
+    ]
 
     return {
-        "type": "edge_updated",
+        "type": "edge_updated",  # Keep for backward compatibility
         "payload": {
-            "edge_id": edge_id,
+            "edge_id": edge_id,  # Keep for backward compatibility
+            "connection_id": edge_id,  # New name
             "valid": True
         }
     }
 
 
 async def handle_delete_edge(session, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle delete_edge message."""
-    edge_id = payload.get("edge_id")
+    """Handle delete_edge message (renamed to delete_connection internally)."""
+    edge_id = payload.get("edge_id") or payload.get("connection_id")  # Support both names
 
     if not edge_id:
         return {
             "type": "error",
             "payload": {
-                "message": "edge_id is required",
-                "code": "MISSING_EDGE_ID"
+                "message": "edge_id or connection_id is required",
+                "code": "MISSING_CONNECTION_ID"
             }
         }
 
-    # Find and remove edge instance
-    edge_instance = next((e for e in session.graph.edges if e.edge_def.id == edge_id), None)
-    if not edge_instance:
+    # Find and remove connection instance
+    connection_instance = next((c for c in session.graph.connections if c.id == edge_id), None)
+    if not connection_instance:
         return {
             "type": "error",
             "payload": {
-                "message": f"Edge {edge_id} not found",
-                "code": "EDGE_NOT_FOUND",
-                "edge_id": edge_id
+                "message": f"Connection {edge_id} not found",
+                "code": "CONNECTION_NOT_FOUND",
+                "edge_id": edge_id,  # Keep for backward compatibility
+                "connection_id": edge_id,  # New name
             }
         }
 
-    # Remove edge instance
-    session.graph.edges = [e for e in session.graph.edges if e.edge_def.id != edge_id]
+    # Remove connection instance
+    session.graph.connections = [c for c in session.graph.connections if c.id != edge_id]
 
     return {
-        "type": "edge_deleted",
+        "type": "edge_deleted",  # Keep for backward compatibility
         "payload": {
-            "edge_id": edge_id
+            "edge_id": edge_id,  # Keep for backward compatibility
+            "connection_id": edge_id,  # New name
         }
     }
 
